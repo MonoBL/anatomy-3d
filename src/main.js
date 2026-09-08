@@ -1,6 +1,7 @@
 import { loadIndex, loadSystem, loadText } from './atlas.js';
 import { Viewer, ANATOMICAL_COLORS } from './viewer.js';
 import { makeT, applyStatic, initialLang, rememberLang, numberFormat, LANGS } from './i18n.js';
+import { registerServiceWorker } from './offline.js';
 
 const $ = sel => document.querySelector(sel);
 const FMA_URL = id => `https://bioportal.bioontology.org/ontologies/FMA?p=classes&conceptid=http%3A%2F%2Fpurl.org%2Fsig%2Font%2Ffma%2F${id.toLowerCase()}`;
@@ -24,6 +25,10 @@ const CUTS = [
 const state = {
   index: null, viewer: null, systems: new Map(), loaded: new Set(),
   tab: 'all', pane: 'A', cursor: 0, results: [],
+  region: null, sub: null, side: null,
+  multiselect: false, undo: [],
+  // The rail starts out of the way on a tablet, open on a desktop.
+  rail: matchMedia('(min-width: 1100px)').matches && !matchMedia('(hover: none)').matches,
   lang: initialLang(), t: null, nf: null, text: {},
   cuts: new Map(CUTS.map(c => [c.id, { on: false, at: 0.5, flip: false }])),
   compare: false, touch: matchMedia('(hover: none)').matches,
@@ -36,6 +41,8 @@ const tabWants = (tab, s) => !DEFAULT_OFF.has(s.id) &&
 const label = s => (state.lang === 'pt' && s.labelPt ? s.labelPt : s.label);
 const partName = p => state.text[state.lang]?.[p.i]?.n ?? p.n;
 const partText = p => state.text[state.lang]?.[p.i] ?? {};
+
+registerServiceWorker();
 
 init().catch(err => {
   console.error(err);
@@ -58,8 +65,17 @@ async function init() {
   if (import.meta.env?.DEV) window.__atlas = state;
 
   buildSystemList();
+  buildRegionBar();
+  buildSubBar();
   buildCutRows();
   bindUI();
+  bindToolbar();
+  let rail = state.rail;
+  try {
+    const saved = localStorage.getItem('atlas.rail');
+    if (saved !== null) rail = saved === '1';
+  } catch { /* private mode */ }
+  setRail(rail);
   tick();
   state.text[state.lang] = await loadText(state.lang);
   await loadAll();
@@ -82,9 +98,10 @@ async function setLang(lang, { initial = false } = {}) {
   if (initial) return;
   if (!state.text[state.lang]) state.text[state.lang] = await loadText(state.lang);
   buildSystemList();
+  buildRegionBar();
+  buildSubBar();
   buildCutRows();
   updateVisibleCount();
-  updateCaption();
   if (state.viewer.selected >= 0) selectPart(state.viewer.selected);
   if (state.results.length) runSearch();
 }
@@ -199,6 +216,272 @@ function buildSystemList() {
   updateVisibleCount();
 }
 
+// ---------------------------------------------------------------- tools
+const UNDO_DEPTH = 30;
+
+// Snapshot before anything that changes what is on screen, so a wrong tap on a
+// tablet costs one Undo instead of a rebuild of the whole view.
+function pushUndo() {
+  state.undo.push({
+    viewer: state.viewer.snapshot(),
+    cuts: new Map([...state.cuts].map(([k, v]) => [k, { ...v }])),
+    region: state.region, sub: state.sub, side: state.side,
+  });
+  if (state.undo.length > UNDO_DEPTH) state.undo.shift();
+  syncToolbar();
+}
+
+function undo() {
+  const s = state.undo.pop();
+  if (!s) return;
+  state.cuts = s.cuts;
+  state.region = s.region;
+  state.sub = s.sub;
+  state.side = s.side;
+  state.viewer.restore(s.viewer);
+  buildCutRows();
+  buildRegionBar();
+  buildSubBar();
+  applyCuts();
+  syncToggles();
+  selectPart(state.viewer.selected, { keepSelection: true });
+  updateVisibleCount();
+  syncToolbar();
+}
+
+function toggleIsolate() {
+  const viewer = state.viewer;
+  if (viewer.selected < 0) return;
+  pushUndo();
+  viewer.setIsolated(!viewer.isolated);
+  if (viewer.isolated) viewer.focusSelection();
+  syncToolbar();
+  updateVisibleCount();
+}
+
+function hideSelection() {
+  const viewer = state.viewer;
+  if (!viewer.selection.size) return;
+  pushUndo();
+  viewer.hideParts([...viewer.selection]);
+  syncToolbar();
+  updateVisibleCount();
+}
+
+// The layer stepper. Peeling is undoable in one step per press, which is what
+// makes it safe to explore with.
+function setPeel(n) {
+  const before = state.viewer.peel;
+  const after = state.viewer.setPeel(n);
+  if (after !== before) {
+    updateVisibleCount();
+    syncToolbar();
+  }
+}
+
+function setMultiselect(on) {
+  state.multiselect = on;
+  syncToolbar();
+}
+
+// Reset puts the atlas back to how it opens: no selection, nothing hidden,
+// every system at its default, no cut, no region, camera home.
+function resetAll() {
+  const viewer = state.viewer;
+  pushUndo();
+  selectPart(-1);          // closes the detail panel too
+  viewer.showAllParts();
+  viewer.setPeel(0);
+  viewer.setIsolated(false);
+  setCompare(false);
+  setMultiselect(false);
+  state.region = null;
+  state.sub = null;
+  state.side = null;
+  viewer.setFilter({ region: null, sub: null, side: null });
+  buildSubBar();          // the strip only exists while a region is active
+  for (const st of state.cuts.values()) { st.on = false; st.flip = false; st.at = 0.5; }
+  toggleExplodePanel(false);
+  $('#explode').value = 0;
+  viewer.setSpread(0);
+  applyTab('all');
+  buildCutRows();
+  buildRegionBar();
+  applyCuts();
+  viewer.frameCurrent();
+  viewer.resetCamera();
+  updateVisibleCount();
+  syncToolbar();
+}
+
+function setRail(open) {
+  state.rail = open;
+  $('#app').classList.toggle('rail-closed', !open);
+  $('#railToggle').setAttribute('aria-expanded', String(open));
+  try { localStorage.setItem('atlas.rail', open ? '1' : '0'); } catch { /* private mode */ }
+}
+
+function toggleExplodePanel(on = $('#explodePanel').hidden) {
+  $('#explodePanel').hidden = !on;
+  document.querySelector('.toolbar button[data-tool="explode"]')?.classList.toggle('is-active', on);
+  // Leaving the panel means leaving the exploded view: a slider you cannot see
+  // is not a state anyone can get out of.
+  if (!on && state.viewer.spread > 0) {
+    $('#explode').value = 0;
+    state.viewer.setSpread(0);
+    if (state.region) applyCuts();
+    state.viewer.frameCurrent();
+  }
+}
+
+function syncToolbar() {
+  const viewer = state.viewer;
+  if (!viewer) return;
+  const has = viewer.selection.size > 0;
+  const set = (tool, { on, disabled } = {}) => {
+    const b = document.querySelector(`.toolbar button[data-tool="${tool}"]`);
+    if (!b) return;
+    b.disabled = !!disabled;
+    b.classList.toggle('is-active', !!on);
+  };
+  set('center', { disabled: !has });
+  set('isolate', { on: viewer.isolated, disabled: !has });
+  set('multi', { on: state.multiselect });
+  set('hide', { disabled: !has });
+  set('undo', { disabled: !state.undo.length });
+  set('explode', { on: !$('#explodePanel').hidden });
+  set('reset');
+  const max = viewer.maxPeel();
+  $('#layerVal').textContent = `${viewer.peel + 1} / ${max + 1}`;
+  $('#layerStep').querySelector('[data-layer="up"]').disabled = viewer.peel <= 0;
+  $('#layerStep').querySelector('[data-layer="down"]').disabled = viewer.peel >= max;
+  $('#isolateBtn')?.classList.toggle('is-on', viewer.isolated);
+}
+
+function bindToolbar() {
+  const viewer = state.viewer;
+  const actions = {
+    center: () => viewer.focusSelection(),
+    isolate: toggleIsolate,
+    multi: () => setMultiselect(!state.multiselect),
+    hide: hideSelection,
+    undo,
+    explode: () => toggleExplodePanel(),
+    reset: resetAll,
+  };
+  document.querySelectorAll('.toolbar button[data-tool]').forEach(b =>
+    b.addEventListener('click', () => actions[b.dataset.tool]?.()));
+  $('#layerStep').querySelectorAll('button').forEach(b =>
+    b.addEventListener('click', () => {
+      pushUndo();
+      setPeel(viewer.peel + (b.dataset.layer === 'down' ? 1 : -1));
+    }));
+  syncToolbar();
+}
+
+// ---------------------------------------------------------------- regions
+function buildRegionBar() {
+  const bar = $('#regionBar');
+  const counts = new Map();
+  for (const p of state.index.parts) {
+    for (const rid of Object.keys(p.rgw ?? { [p.rg]: 1 })) {
+      counts.set(rid, (counts.get(rid) ?? 0) + 1);
+    }
+  }
+  const entries = [
+    { id: '', name: state.t('region.all'), count: state.index.parts.length },
+    ...state.index.regions.map(r => ({
+      id: r.id,
+      name: state.lang === 'pt' && r.labelPt ? r.labelPt : r.label,
+      count: counts.get(r.id) ?? 0,
+    })),
+  ];
+  bar.innerHTML = entries.map(e => `
+    <button data-region="${e.id}" class="${(state.region ?? '') === e.id ? 'is-active' : ''}">
+      ${e.name}<span class="rcount">${state.nf.format(e.count)}</span></button>`).join('');
+  bar.querySelectorAll('button').forEach(b =>
+    b.addEventListener('click', () => setRegion(b.dataset.region || null)));
+}
+
+function setRegion(id, { record = true } = {}) {
+  if (record && id !== state.region) pushUndo();
+  state.region = id;
+  state.sub = null;                      // a new region starts on the whole of it
+  applyFilter({ frame: true });
+}
+
+// The sub-region strip: which part of the region, and which side of the body.
+function buildSubBar() {
+  const bar = $('#subBar');
+  bar.hidden = !state.region;
+  if (!state.region) { bar.innerHTML = ''; return; }
+  const name = s => (state.lang === 'pt' && s.labelPt ? s.labelPt : s.label);
+  const subs = state.index.subregions.filter(s => s.region === state.region);
+  const active = (a, b) => (a === b ? ' is-active' : '');
+  bar.innerHTML = `
+    <button data-sub="" class="${active(state.sub, null).trim()}">${state.t('region.whole')}</button>
+    ${subs.map(s => `<button data-sub="${s.id}" class="${active(state.sub, s.id).trim()}">${name(s)}</button>`).join('')}
+    <span class="sep"></span>
+    <button data-side="" class="side${active(state.side, null)}" title="${state.t('region.both')}">⇄</button>
+    <button data-side="l" class="side${active(state.side, 'l')}" title="${state.t('region.left')}">${state.t('region.leftShort')}</button>
+    <button data-side="r" class="side${active(state.side, 'r')}" title="${state.t('region.right')}">${state.t('region.rightShort')}</button>`;
+  bar.querySelectorAll('[data-sub]').forEach(b =>
+    b.addEventListener('click', () => setSub(b.dataset.sub || null)));
+  bar.querySelectorAll('[data-side]').forEach(b =>
+    b.addEventListener('click', () => setSide(b.dataset.side || null)));
+}
+
+function setSub(id) {
+  if (id === state.sub) return;
+  pushUndo();
+  state.sub = id;
+  applyFilter({ frame: true });
+}
+
+function setSide(side) {
+  if (side === state.side) return;
+  pushUndo();
+  state.side = side;
+  applyFilter({ frame: true });
+}
+
+// One place that pushes region, sub-region and side into the viewer, reframes
+// and refreshes the bars, so the three controls can never disagree.
+function applyFilter({ frame = false } = {}) {
+  const viewer = state.viewer;
+  viewer.setFilter({ region: state.region, sub: state.sub, side: state.side });
+  document.querySelectorAll('#regionBar button').forEach(b =>
+    b.classList.toggle('is-active', (b.dataset.region || null) === state.region));
+  buildSubBar();
+  viewer.setPeel(viewer.peel);           // each region has its own depth
+  applyCuts();
+  if (frame) {
+    const box = filterBox();
+    if (box) viewer.focusBox(box); else viewer.resetCamera();
+  }
+  updateVisibleCount();
+  syncToolbar();
+}
+
+// The box the current filter should trim and frame to: the sub-region if one
+// is chosen, otherwise the whole region, on one side if a side is chosen.
+function filterBox() {
+  const source = state.sub
+    ? state.index.subregions.find(s => s.id === state.sub)
+    : state.index.regions.find(r => r.id === state.region);
+  if (!source) return null;
+  return (state.side && source.boxSide?.[state.side]) || source.box || null;
+}
+
+// The region a part is shown in, for the detail panel.
+function regionLabel(p) {
+  const r = state.index.regions.find(x => x.id === p.rg);
+  if (!r) return null;
+  const sub = state.index.subregions.find(x => x.id === p.sr);
+  const name = s => (state.lang === 'pt' && s.labelPt ? s.labelPt : s.label);
+  return sub && sub.region === r.id ? `${name(r)} · ${name(sub)}` : name(r);
+}
+
 function setSystem(id, on) {
   state.viewer.setSystemVisible(id, on, state.pane);
   document.querySelector(`.sysrow[data-id="${id}"] .toggle`)?.classList.toggle('is-on', on);
@@ -214,6 +497,7 @@ function syncToggles() {
 }
 
 function soloSystem(id) {
+  pushUndo();
   const vis = state.viewer.visibilityMap(state.pane);
   const only = state.index.systems.every(s => (vis.get(s.id) !== false) === (s.id === id));
   for (const s of state.index.systems) setSystem(s.id, only ? !DEFAULT_OFF.has(s.id) : s.id === id);
@@ -221,7 +505,8 @@ function soloSystem(id) {
   syncTabs();
 }
 
-function applyTab(tab) {
+function applyTab(tab, { record = false } = {}) {
+  if (record) pushUndo();
   state.tab = tab;
   for (const s of state.index.systems) setSystem(s.id, tabWants(tab, s));
   syncTabs();
@@ -235,7 +520,21 @@ function updateVisibleCount() {
   if (!state.viewer) return;
   const n = state.viewer.visibleCount(state.pane);
   const word = state.t(n === 1 ? 'systems.visibleOne' : 'systems.visible');
-  $('#visibleCount').textContent = `${state.nf.format(n)} ${word}`;
+  const hidden = state.viewer.hiddenParts.size;
+  const el = $('#visibleCount');
+  el.textContent = `${state.nf.format(n)} ${word}`;
+  if (hidden) {
+    const btn = document.createElement('button');
+    btn.className = 'linkbtn';
+    btn.textContent = ` · ${state.nf.format(hidden)} ${state.t('tool.hidden')}`;
+    btn.title = state.t('tool.showHidden');
+    btn.addEventListener('click', () => {
+      pushUndo();
+      state.viewer.showAllParts();
+      updateVisibleCount();
+    });
+    el.appendChild(btn);
+  }
   const anyOn = state.index.systems.some(s => state.viewer.visibilityMap(state.pane).get(s.id) !== false);
   $('#hideAll').textContent = state.t(anyOn ? 'systems.hideAll' : 'systems.showAll');
 }
@@ -275,7 +574,16 @@ function buildCutRows() {
 function applyCuts() {
   const { min, max } = state.index.bounds;
   const lo = [...min], hi = [...max];
-  let any = false;
+  // Trimming to the region only makes sense while the body is assembled: the
+  // explode slider throws parts far outside any region box.
+  const regionBox = state.viewer.spread > 0.01 ? null : filterBox();
+  let any = !!regionBox;
+  if (regionBox) {
+    for (let a = 0; a < 3; a++) {
+      lo[a] = Math.max(lo[a], regionBox.min[a]);
+      hi[a] = Math.min(hi[a], regionBox.max[a]);
+    }
+  }
   for (const cut of CUTS) {
     const st = state.cuts.get(cut.id);
     if (!st.on) continue;
@@ -300,22 +608,30 @@ function clearCuts() {
 }
 
 // -------------------------------------------------------------- selection
-function selectPart(id, { focus = false } = {}) {
+// `keepSelection` refreshes the panel for an existing selection, which is what
+// Undo needs: it has already put the whole selection set back.
+function selectPart(id, { focus = false, keepSelection = false } = {}) {
   const viewer = state.viewer;
-  viewer.setSelected(id);
+  if (!keepSelection) viewer.setSelected(id);
   if (id < 0) {
     setCompare(false);
     $('#detail').hidden = true;
     updateVisibleCount();
+    syncToolbar();
     return;
   }
   const p = viewer.byId.get(id);
   const sys = state.systems.get(p.s);
   const txt = partText(p);
   if (viewer.visibilityMap('A').get(p.s) === false && state.pane === 'A') setSystem(p.s, true);
+  // A structure the region filter hides cannot be inspected, so step out of it.
+  if (!viewer.inRegion(p)) setRegion(null, { record: false });
 
-  $('#detailSystem').textContent = label(sys);
-  $('#detailTitle').textContent = partName(p);
+  const rl = regionLabel(p);
+  $('#detailSystem').textContent = rl ? `${label(sys)} · ${rl}` : label(sys);
+  $('#detailTitle').textContent = viewer.selection.size > 1
+    ? `${partName(p)} +${viewer.selection.size - 1}`
+    : partName(p);
   const noPt = state.lang === 'pt' && !txt.n;
   $('#detailAlt').textContent = noPt ? state.t('detail.noPt') : '';
   $('#detailAlt').hidden = !noPt;
@@ -325,7 +641,8 @@ function selectPart(id, { focus = false } = {}) {
     : state.t('src.derived');
   $('#detailFma').textContent = p.f;
   $('#detailVolume').textContent = formatVolume(p.v);
-  $('#detailCount').textContent = state.nf.format(state.compare && p.p !== undefined ? 2 : 1);
+  $('#detailCount').textContent = state.nf.format(
+    state.compare && p.p !== undefined ? 2 : Math.max(1, state.viewer.selection.size));
   $('#detailSource').href = txt.s ? WIKI_URL(state.lang, txt.s) : FMA_URL(p.f);
   $('#isolateBtn').classList.toggle('is-on', viewer.isolated);
   $('#detail').hidden = false;
@@ -338,6 +655,7 @@ function selectPart(id, { focus = false } = {}) {
 
   if (focus) viewer.focusPart(p);
   updateVisibleCount();
+  syncToolbar();
 }
 
 function formatVolume(cm3) {
@@ -387,7 +705,7 @@ function bindUI() {
     b.addEventListener('click', () => setLang(b.dataset.lang));
   }
   document.querySelectorAll('.tab').forEach(t =>
-    t.addEventListener('click', () => applyTab(t.dataset.group)));
+    t.addEventListener('click', () => applyTab(t.dataset.group, { record: true })));
   document.querySelectorAll('.panetab').forEach(t =>
     t.addEventListener('click', () => {
       state.pane = t.dataset.pane;
@@ -397,12 +715,14 @@ function bindUI() {
     }));
 
   $('#hideAll').addEventListener('click', () => {
+    pushUndo();
     const vis = viewer.visibilityMap(state.pane);
     const anyOn = state.index.systems.some(s => vis.get(s.id) !== false);
     for (const s of state.index.systems) setSystem(s.id, !anyOn);
     state.tab = anyOn ? null : 'all';
     syncTabs();
   });
+  $('#railToggle').addEventListener('click', () => setRail(!state.rail));
   $('#cutClear').addEventListener('click', clearCuts);
   $('#resetView').addEventListener('click', resetView);
 
@@ -412,7 +732,7 @@ function bindUI() {
     const v = Number(slider.value);
     viewer.setSpread(v / 100);
     $('#explodeVal').textContent = `${Math.round(v)} %`;
-    updateCaption();
+    if (state.region) applyCuts();
     viewer.frameCurrent();
   };
   state.onSlide = onSlide;
@@ -470,8 +790,17 @@ function bindUI() {
     down = null;
     if (dist > (e.pointerType === 'mouse' ? 5 : 12) || slow) return;
     const id = viewer.pickAt(e.clientX, e.clientY);
-    if (id < 0) { selectPart(-1); state.markView(null); return; }
-    selectPart(id, { focus: e.detail > 1 });
+    if (id < 0) {
+      if (!state.multiselect) { selectPart(-1); state.markView(null); }
+      return;
+    }
+    if (state.multiselect) {
+      const primary = viewer.toggleSelected(id);
+      selectPart(primary, { keepSelection: true });
+    } else {
+      selectPart(id, { focus: e.detail > 1 });
+    }
+    syncToolbar();
     if (e.pointerType !== 'mouse') showTooltip(id, e.clientX, e.clientY, 1600);
   });
 
@@ -500,12 +829,7 @@ function bindUI() {
   // detail -------------------------------------------------------------
   $('#detailClose').addEventListener('click', () => selectPart(-1));
   $('#clearSel').addEventListener('click', () => selectPart(-1));
-  $('#isolateBtn').addEventListener('click', () => {
-    viewer.setIsolated(!viewer.isolated);
-    $('#isolateBtn').classList.toggle('is-on', viewer.isolated);
-    if (viewer.isolated) viewer.focusPart(viewer.byId.get(viewer.selected));
-    updateVisibleCount();
-  });
+  $('#isolateBtn').addEventListener('click', toggleIsolate);
   $('#compareBtn').addEventListener('click', () => {
     setCompare(!state.compare);
     if (state.compare) {
@@ -542,6 +866,11 @@ function bindUI() {
     if (e.target.tagName === 'INPUT') return;
     if (e.key === '/') { e.preventDefault(); input.focus(); }
     else if (e.key === 'Escape') { selectPart(-1); $('#aboutModal').hidden = true; }
+    else if (e.key === 'z' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); undo(); }
+    else if (e.key === 'h' && viewer.selection.size) hideSelection();
+    else if (e.key === 'm') setMultiselect(!state.multiselect);
+    else if (e.key === ']') { pushUndo(); setPeel(viewer.peel + 1); }
+    else if (e.key === '[') { pushUndo(); setPeel(viewer.peel - 1); }
     else if (e.key === 'i' && viewer.selected >= 0) $('#isolateBtn').click();
     else if (e.key === 'c' && viewer.selected >= 0) $('#compareBtn').click();
     else if (VIEW_KEYS[e.key.toLowerCase()]) {
@@ -562,11 +891,6 @@ function resetView() {
   $('#resetView').hidden = true;
 }
 
-function updateCaption() {
-  const v = Number($('#explode').value);
-  $('#stageCaption').textContent = state.t(
-    v < 1 ? 'stage.body' : v <= 60 ? 'stage.separated' : 'stage.inventory');
-}
 
 const VIEW_KEYS = { a: 'A', p: 'P', s: 'S', r: 'R', l: 'L' };
 
@@ -577,6 +901,7 @@ function runSearch() {
   if (!q) { results.hidden = true; state.results = []; return; }
   const hits = [];
   for (const p of state.index.parts) {
+    if (state.region && !state.viewer.inRegion(p)) continue;
     const name = partName(p).toLowerCase();
     const at = name.indexOf(q);
     if (at >= 0) hits.push({ p, score: at + (name.length - q.length) * 0.02 });

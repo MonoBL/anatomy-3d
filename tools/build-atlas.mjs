@@ -7,6 +7,8 @@ import { MeshoptSimplifier, MeshoptEncoder } from 'meshoptimizer';
 import { parseObj } from './obj.mjs';
 import { loadGraph, loadElements, ancestorsOf, ROOT } from './lib-bp3d.mjs';
 import { ALL_SYSTEMS } from './systems.mjs';
+import { REGIONS, SUBREGIONS, assignRegions, regionBoxes } from './regions.mjs';
+import { assignLayers } from './layers.mjs';
 import { loadSources, describePart } from './describe.mjs';
 
 const OBJ_DIR = path.join(ROOT, 'data/obj/isa_BP3D_4.0_obj_99');
@@ -238,12 +240,27 @@ async function main() {
     r.elong = ext.elongation;
   }
 
+  // Regions: bone name rules seed the anchors, everything else inherits the
+  // region of the skeleton it lies against.
+  assignRegions(raw, { log });
+  const boxes = regionBoxes(raw);
+  for (const r of REGIONS) {
+    const n = raw.filter(p => p.region === r.id).length;
+    const extra = raw.filter(p => p.region !== r.id && p.regions[r.id]).length;
+    log(`  ${r.id.padEnd(10)} ${String(n).padStart(4)} parts` + (extra ? ` (+${extra} shared)` : ''));
+  }
+  const unplaced = raw.filter(p => !p.subregion);
+  if (unplaced.length) log(`  ${unplaced.length} parts with no sub-region`);
+
   // Stable global part ids: grouped by system, largest first.
   const sysOrder = new Map(ALL_SYSTEMS.map((s, i) => [s.id, i]));
   raw.sort((a, b) => (sysOrder.get(a.system) - sysOrder.get(b.system)) ||
     (b.radius - a.radius) || a.name.localeCompare(b.name));
   raw.forEach((r, i) => { r.id = i; });
   log(`paired ${pairUp(raw)} left/right structures`);
+
+  // Muscular layers, ranked within each region.
+  const layerCount = assignLayers(raw, { log });
 
   // Inventory wall: one slot per part, laid out in reading order.
   const cols = Math.max(1, Math.round(Math.sqrt(raw.length * GRID_ASPECT)));
@@ -344,6 +361,13 @@ async function main() {
     license: 'CC Attribution-Share Alike 2.1 Japan',
     credit: 'BodyParts3D, (c) The Database Center for Life Science licensed under CC Attribution-Share Alike 2.1 Japan',
     bounds: { min: worldMin, max: worldMax },
+    regions: REGIONS.map(r => ({
+      ...r, box: boxes[r.id]?.all ?? null, boxSide: boxes[r.id] ?? null,
+      layers: layerCount[r.id] ?? 1,
+    })),
+    subregions: SUBREGIONS.map(sr => ({
+      ...sr, box: boxes[sr.id]?.all ?? null, boxSide: boxes[sr.id] ?? null,
+    })),
     quant: { min: qMin, scale: qScale },
     grid: { cols, rows, cell },
     coverage: { ptNames: ptNamed, wikiEn, wikiPt },
@@ -358,6 +382,13 @@ async function main() {
       a: r.axis.map(v => +v.toFixed(3)),
       h: +r.half.toFixed(4),
       el: +r.elong.toFixed(2),
+      rg: r.region,
+      ...(r.layer !== undefined ? { ly: r.layer } : {}),
+      ...(r.subregion ? { sr: r.subregion } : {}),
+      ...(r.side ? { sd: r.side } : {}),
+      ...(Object.keys(r.subregions ?? {}).length > 1 ? { srw: r.subregions } : {}),
+      // Only worth shipping when the part straddles a boundary.
+      ...(Object.keys(r.regions).length > 1 ? { rgw: r.regions } : {}),
       ...(r.pair !== undefined ? { p: r.pair } : {}),
     })),
   };

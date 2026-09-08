@@ -8,6 +8,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&display=swap" rel="stylesheet" />
+<meta name="theme-color" content="#f4f4f2" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Human Atlas" />
+<meta name="mobile-web-app-capable" content="yes" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/icon-192.png" sizes="192x192" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
@@ -26,6 +34,10 @@
       <p class="sub"><span id="pieceTotal">—</span> <span data-i18n="app.sub">modeled pieces</span> &nbsp;·&nbsp; BodyParts3D</p>
     </header>
 
+    <!-- body regions -->
+    <nav class="regionbar" id="regionBar" data-i18n-label="region.title"></nav>
+    <nav class="subbar" id="subBar" hidden></nav>
+
     <!-- search + language + info -->
     <div class="topright">
       <div class="search">
@@ -42,8 +54,11 @@
       <div class="results" id="results" hidden></div>
     </div>
 
-    <!-- left rail: systems + cuts -->
-    <div class="leftrail">
+    <!-- left rail: systems + cuts, behind a hamburger -->
+    <button class="railtoggle" id="railToggle" data-i18n-title="ui.panels" aria-expanded="true">
+      <svg viewBox="0 0 18 18" class="ico"><path d="M2.5 5h13M2.5 9h13M2.5 13h13"/></svg>
+    </button>
+    <div class="leftrail" id="leftRail">
     <section class="panel systems" id="systemsPanel">
       <div class="panel-head">
         <span data-i18n="systems.title">Systems</span>
@@ -77,8 +92,7 @@
     </div>
 
     <!-- explode -->
-    <div class="stagecaption" id="stageCaption" data-i18n="stage.body">Adult human · male</div>
-    <section class="panel explode">
+    <section class="panel explode" id="explodePanel" hidden>
       <div class="explode-head">
         <span data-i18n="explode.title">Explode anatomy</span>
         <span class="pill" id="explodeVal">0 %</span>
@@ -106,6 +120,48 @@
       </button>
       <button data-view="home" data-i18n-title="view.home" class="round">
         <svg viewBox="0 0 16 16" class="ico"><path d="M3 8a5 5 0 1 0 1.6-3.7"/><path d="M3 2.2V5h2.8"/></svg>
+      </button>
+    </div>
+
+    <!-- tools -->
+    <div class="toolbar" id="toolbar">
+      <div class="layerstep" id="layerStep">
+        <button data-layer="up" data-i18n-title="tool.layerUp">
+          <svg viewBox="0 0 20 12" class="tico"><path d="M3 8.5 10 3l7 5.5"/></svg>
+        </button>
+        <span class="layerlabel"><span data-i18n="tool.layers">Muscular layers</span>
+          <em id="layerVal">1 / 1</em></span>
+        <button data-layer="down" data-i18n-title="tool.layerDown">
+          <svg viewBox="0 0 20 12" class="tico"><path d="M3 3.5 10 9l7-5.5"/></svg>
+        </button>
+      </div>
+      <button data-tool="center" data-i18n-title="tool.center">
+        <svg viewBox="0 0 20 20" class="tico"><circle cx="10" cy="10" r="2.6"/><path d="M10 1.6v3.2M10 15.2v3.2M1.6 10h3.2M15.2 10h3.2"/></svg>
+        <span data-i18n="tool.center">Center</span>
+      </button>
+      <button data-tool="isolate" data-i18n-title="tool.isolate">
+        <svg viewBox="0 0 20 20" class="tico"><path d="M2.5 7V2.5H7M13 2.5h4.5V7M17.5 13v4.5H13M7 17.5H2.5V13"/><circle cx="10" cy="10" r="2.4"/></svg>
+        <span data-i18n="tool.isolate">Isolate</span>
+      </button>
+      <button data-tool="multi" data-i18n-title="tool.multi">
+        <svg viewBox="0 0 20 20" class="tico"><circle cx="6" cy="6" r="1.9"/><circle cx="14" cy="7" r="1.9"/><circle cx="7" cy="14" r="1.9"/><circle cx="14.5" cy="14.5" r="1.9"/></svg>
+        <span data-i18n="tool.multi">Multiselect</span>
+      </button>
+      <button data-tool="hide" data-i18n-title="tool.hide">
+        <svg viewBox="0 0 20 20" class="tico"><path d="M2.6 10S5.6 5 10 5s7.4 5 7.4 5-3 5-7.4 5-7.4-5-7.4-5Z"/><path d="M3.5 3.5l13 13"/></svg>
+        <span data-i18n="tool.hide">Hide</span>
+      </button>
+      <button data-tool="undo" data-i18n-title="tool.undo">
+        <svg viewBox="0 0 20 20" class="tico"><path d="M3.5 9.5h8.2a4 4 0 0 1 0 8H8"/><path d="M6.8 6.2 3.4 9.5l3.4 3.3"/></svg>
+        <span data-i18n="tool.undo">Undo</span>
+      </button>
+      <button data-tool="explode" data-i18n-title="tool.explode">
+        <svg viewBox="0 0 20 20" class="tico"><path d="M10 8.6V3.2M10 11.4v5.4M8.6 10H3.2M11.4 10h5.4"/><circle cx="10" cy="10" r="1.3"/></svg>
+        <span data-i18n="tool.explode">Explode</span>
+      </button>
+      <button data-tool="reset" data-i18n-title="tool.reset">
+        <svg viewBox="0 0 20 20" class="tico"><circle cx="10" cy="10" r="6.4"/></svg>
+        <span data-i18n="tool.reset">Reset</span>
       </button>
     </div>
 

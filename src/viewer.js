@@ -38,7 +38,7 @@ bool clipped(vec3 p) {
 const PART_VERT_PRELUDE = /* glsl */`
 attribute float pid;
 uniform vec3 uQMin, uQScale, uCenter;
-uniform sampler2D uPartTex, uSlotTex, uExtraTex;
+uniform sampler2D uPartTex, uSlotTex, uExtraTex, uStateTex;
 uniform vec2 uTexSize;
 uniform float uExplode, uInventory, uExplodeDist, uSelected, uHovered, uCompare;
 varying vec3 vWorld;
@@ -57,6 +57,7 @@ vec3 partPosition() {
   vec2 uv = texUv(pid);
   vec4 d0 = texture2D(uPartTex, uv);   // xyz: centroid, w: visible
   vec4 d1 = texture2D(uSlotTex, uv);   // xyz: inventory slot
+  vec4 st = texture2D(uStateTex, uv);  // x: selected, y: opacity, z: layer
   vec3 p = uQMin + position * uQScale;
   vec3 c = d0.xyz;
   vec3 dir = (c - uCenter) * vec3(1.0, 0.45, 1.0);   // fan out sideways
@@ -68,7 +69,9 @@ vec3 partPosition() {
   vPid = pid;
   vVisible = d0.w;
   vWorld = wp;
-  vState = abs(pid - uSelected) < 0.5 ? 2.0
+  // The primary selection and the rest of a multi-selection tint alike; the
+  // compare partner and the hover keep their own colours.
+  vState = (abs(pid - uSelected) < 0.5 || st.x > 0.5) ? 2.0
          : abs(pid - uCompare) < 0.5 ? 3.0
          : abs(pid - uHovered) < 0.5 ? 1.0 : 0.0;
   return wp;
@@ -121,6 +124,16 @@ export class Viewer {
     this.hovered = -1;
     this.selected = -1;
     this.isolated = false;
+    // Parts the user hid by hand, independent of which systems are on.
+    this.hiddenParts = new Set();
+    // Everything currently selected; `selected` is the primary one of these.
+    this.selection = new Set();
+    this.region = null;
+    this.sub = null;
+    this.side = null;
+    this.regionParts = null;
+    // How many muscular layers have been peeled away, superficial first.
+    this.peel = 0;
     this.systemVisible = new Map(index.systems.map(s => [s.id, true]));
 
     const bmin = index.bounds.min, bmax = index.bounds.max;
@@ -174,6 +187,10 @@ export class Viewer {
       this.extraData[o] = a[0]; this.extraData[o + 1] = a[1]; this.extraData[o + 2] = a[2];
       this.extraData[o + 3] = p.h ?? 0;
     }
+    // x: selected, y: opacity (used from the transparency work on), z: layer.
+    this.stateData = new Float32Array(w * h * 4);
+    for (const p of this.parts) this.stateData[p.i * 4 + 1] = 1;
+    this.stateTex = makeDataTexture(this.stateData, w, h);
     this.partTex = makeDataTexture(this.partData, w, h);
     this.slotTex = makeDataTexture(this.slotData, w, h);
     this.extraTex = makeDataTexture(this.extraData, w, h);
@@ -191,6 +208,7 @@ export class Viewer {
       uPartTex: { value: this.partTex },
       uSlotTex: { value: this.slotTex },
       uExtraTex: { value: this.extraTex },
+      uStateTex: { value: this.stateTex },
       uTexSize: { value: this.texSize },
       uExplode: { value: 0 },
       uInventory: { value: 0 },
@@ -271,6 +289,60 @@ export class Viewer {
     this.applyVisibility();
   }
 
+  // Region views. A part belongs to a region when that region owns it, or when
+  // enough of it lies there: the build stores the share for the structures that
+  // straddle a boundary, so the femoral artery shows in the trunk and the thigh.
+  // The same holds one level down, for "the arm" or "the hand", and a side
+  // filter narrows it to one limb.
+  setFilter({ region = this.region, sub = this.sub, side = this.side } = {}) {
+    this.region = region ?? null;
+    this.sub = sub ?? null;
+    this.side = side ?? null;
+    const any = this.region || this.sub || this.side;
+    this.regionParts = null;
+    if (any) {
+      this.regionParts = new Set();
+      for (const p of this.parts) {
+        const inRegion = !this.region || p.rg === this.region || p.rgw?.[this.region];
+        const inSub = !this.sub || p.sr === this.sub || p.srw?.[this.sub];
+        // A midline structure has no side and stays in either one.
+        const onSide = !this.side || !p.sd || p.sd === this.side;
+        if (inRegion && inSub && onSide) this.regionParts.add(p.i);
+      }
+    }
+    this.applyVisibility();
+  }
+
+  setRegionFilter(regionId) {
+    this.setFilter({ region: regionId ?? null, sub: null, side: this.side });
+  }
+
+  inRegion(p) {
+    return !this.regionParts || this.regionParts.has(p.i);
+  }
+
+  // Layers are ranked per region, so peeling the whole body takes the
+  // superficial layer off every region at once.
+  peeled(p) {
+    return this.peel > 0 && p.ly !== undefined && p.ly < this.peel;
+  }
+
+  setPeel(n) {
+    const max = this.maxPeel();
+    this.peel = Math.max(0, Math.min(max, n));
+    this.applyVisibility();
+    return this.peel;
+  }
+
+  // One less than the layer count: peeling everything away would leave the
+  // region empty, which is never what the button is for.
+  maxPeel() {
+    const regions = this.region
+      ? this.index.regions.filter(r => r.id === this.region)
+      : this.index.regions;
+    return Math.max(0, Math.max(...regions.map(r => (r.layers ?? 1))) - 1);
+  }
+
   setIsolated(on) {
     this.isolated = on && this.selected >= 0;
     this.applyVisibility();
@@ -283,7 +355,8 @@ export class Viewer {
       const vis = this.visibilityMap(pane);
       const isolate = pane === 'A' && this.isolated;
       for (const p of this.parts) {
-        const on = isolate ? p.i === sel : vis.get(p.s) !== false;
+        const on = (isolate ? p.i === sel : vis.get(p.s) !== false)
+          && this.inRegion(p) && !this.hiddenParts.has(p.i) && !this.peeled(p);
         data[p.i * 4 + 3] = on ? 1 : 0;
       }
       for (const [id] of this.meshes) {
@@ -333,7 +406,94 @@ export class Viewer {
   setSelected(id) {
     this.selected = id;
     this.uniforms.uSelected.value = id;
+    this.selection = id < 0 ? new Set() : new Set([id]);
     if (id < 0) this.isolated = false;
+    this.writeSelection();
+    this.applyVisibility();
+  }
+
+  // Multi-select: adds or removes one part, keeping the last added as primary.
+  toggleSelected(id) {
+    if (this.selection.has(id)) {
+      this.selection.delete(id);
+      if (this.selected === id) this.selected = [...this.selection].pop() ?? -1;
+    } else {
+      this.selection.add(id);
+      this.selected = id;
+    }
+    this.uniforms.uSelected.value = this.selected;
+    if (this.selected < 0) this.isolated = false;
+    this.writeSelection();
+    this.applyVisibility();
+    return this.selected;
+  }
+
+  writeSelection() {
+    for (const p of this.parts) this.stateData[p.i * 4] = this.selection.has(p.i) ? 1 : 0;
+    this.stateTex.needsUpdate = true;
+  }
+
+  // Hiding is per part and survives switching systems on and off, which is
+  // what makes it useful for peeling a dissection by hand.
+  hideParts(ids) {
+    for (const id of ids) this.hiddenParts.add(id);
+    if (this.selection.size && [...this.selection].every(id => this.hiddenParts.has(id))) {
+      this.setSelected(-1);
+      return;
+    }
+    this.applyVisibility();
+  }
+
+  showAllParts() {
+    if (!this.hiddenParts.size) return;
+    this.hiddenParts.clear();
+    this.applyVisibility();
+  }
+
+  // Frame whatever is selected, however many parts that is.
+  focusSelection(duration = 620) {
+    const parts = [...this.selection].map(id => this.byId.get(id)).filter(Boolean);
+    if (!parts.length) return;
+    if (parts.length === 1) return this.focusPart(parts[0], duration);
+    const inventory = this.uniforms.uInventory.value > 0.01;
+    const box = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+    for (const p of parts) {
+      const c = inventory ? p.g : p.c;
+      for (let a = 0; a < 3; a++) {
+        box.min[a] = Math.min(box.min[a], c[a] - p.r);
+        box.max[a] = Math.max(box.max[a], c[a] + p.r);
+      }
+    }
+    this.focusBox(box, duration);
+  }
+
+  // Everything the undo stack has to put back.
+  snapshot() {
+    return {
+      systemVisible: new Map(this.systemVisible),
+      systemVisibleB: new Map(this.systemVisibleB),
+      hiddenParts: new Set(this.hiddenParts),
+      selection: new Set(this.selection),
+      selected: this.selected,
+      isolated: this.isolated,
+      region: this.region,
+      sub: this.sub,
+      side: this.side,
+      peel: this.peel,
+    };
+  }
+
+  restore(s) {
+    this.systemVisible = new Map(s.systemVisible);
+    this.systemVisibleB = new Map(s.systemVisibleB);
+    this.hiddenParts = new Set(s.hiddenParts);
+    this.selection = new Set(s.selection);
+    this.selected = s.selected;
+    this.isolated = s.isolated;
+    this.uniforms.uSelected.value = s.selected;
+    this.peel = s.peel ?? 0;
+    this.setFilter({ region: s.region, sub: s.sub ?? null, side: s.side ?? null });
+    this.writeSelection();
     this.applyVisibility();
   }
 
@@ -432,6 +592,23 @@ export class Viewer {
     this.tween = {
       from: this.camera.position.clone(),
       to: target.clone().add(dir.multiplyScalar(dist)),
+      targetFrom: this.controls.target.clone(), targetTo: target,
+      t: 0, duration,
+    };
+  }
+
+  // Frame an axis-aligned world box, used by the region views.
+  focusBox(box, duration = 700) {
+    const target = new THREE.Vector3(...[0, 1, 2].map(a => (box.min[a] + box.max[a]) / 2));
+    const half = [0, 1, 2].map(a => (box.max[a] - box.min[a]) / 2);
+    const vFov = THREE.MathUtils.degToRad(this.camera.fov);
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
+    const dist = Math.max(half[1] * 1.18 / Math.tan(vFov / 2), half[0] * 1.12 / Math.tan(hFov / 2)) + half[2];
+    this.targetDistance = THREE.MathUtils.clamp(dist, this.controls.minDistance, this.controls.maxDistance);
+    const dir = this.camera.position.clone().sub(this.controls.target).normalize();
+    this.tween = {
+      from: this.camera.position.clone(),
+      to: target.clone().add(dir.multiplyScalar(this.targetDistance)),
       targetFrom: this.controls.target.clone(), targetTo: target,
       t: 0, duration,
     };

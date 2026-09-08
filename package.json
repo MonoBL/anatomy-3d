@@ -12,7 +12,8 @@
     "report:systems": "node tools/report-systems.mjs",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "report:regions": "node tools/report-regions.mjs"
   },
   "dependencies": {
     "meshoptimizer": "^0.24.0",
