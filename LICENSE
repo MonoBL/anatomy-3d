@@ -1,0 +1,26 @@
+Human Atlas — interactive 3D anatomy viewer
+Copyright (c) 2026 Nuno Mendes
+
+This work is licensed under the Creative Commons Attribution-ShareAlike 2.1
+Japan License (CC BY-SA 2.1 JP).
+
+  Human-readable deed: https://creativecommons.org/licenses/by-sa/2.1/jp/deed.en
+  Full legal code:     https://creativecommons.org/licenses/by-sa/2.1/jp/legalcode
+
+Why this licence
+----------------
+The repository redistributes derivative works of the BodyParts3D 4.0 anatomical
+model, which is itself released under CC BY-SA 2.1 Japan. That licence is
+share-alike, so the atlas data in public/atlas/ and this viewer as a whole are
+distributed under the same terms.
+
+  BodyParts3D, (c) The Database Center for Life Science
+  licensed under CC Attribution-Share Alike 2.1 Japan
+  https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html
+
+Structure paragraphs and Portuguese names are excerpts from Wikipedia (CC BY-SA)
+and Wikidata (CC0). See NOTICE for the full attribution list, including the
+third-party software this project depends on.
+
+If you reuse this work, keep the attributions in NOTICE intact and release your
+version under the same licence.

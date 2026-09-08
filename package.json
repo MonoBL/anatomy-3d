@@ -1,0 +1,28 @@
+{
+  "name": "human-atlas",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "fetch:data": "node tools/fetch-data.mjs",
+    "fetch:wikidata": "node tools/fetch-wikidata.mjs",
+    "fetch:wikipedia": "node tools/fetch-wikipedia.mjs",
+    "build:atlas": "node --max-old-space-size=8192 tools/build-atlas.mjs",
+    "verify:atlas": "node tools/verify.mjs",
+    "report:systems": "node tools/report-systems.mjs",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "meshoptimizer": "^0.24.0",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.180.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6"
+  },
+  "license": "CC-BY-SA-2.1-JP",
+  "description": "Interactive 3D atlas of human anatomy built from the 2,234 BodyParts3D meshes."
+}

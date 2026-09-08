@@ -1,0 +1,33 @@
+Human Atlas — interactive 3D anatomy viewer
+===========================================
+
+Anatomical model data
+---------------------
+This project embeds and redistributes derivative works (decimated and re-packed
+meshes) of the BodyParts3D dataset:
+
+  BodyParts3D, (c) The Database Center for Life Science
+  licensed under CC Attribution-Share Alike 2.1 Japan
+  https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html
+
+Files under public/atlas/ are derived from BodyParts3D 4.0 element meshes
+(isa_BP3D_4.0_obj_99). They have been welded, decimated, re-scaled, quantised and
+re-packed; no anatomy was added or invented. Structure names and identifiers come
+from the Foundational Model of Anatomy (FMA) via the BodyParts3D mapping tables.
+
+Because the source data is share-alike, this viewer as a whole is distributed under
+CC Attribution-Share Alike 2.1 Japan.
+
+Structure text and Portuguese names
+-----------------------------------
+Lead paragraphs shown in the detail panel are excerpts from Wikipedia (English and
+Portuguese editions), licensed CC BY-SA. The article each excerpt came from is named
+in the panel and linked from it. The mapping from FMA identifiers to those articles,
+and the Portuguese names, come from Wikidata (property P1402), licensed CC0.
+
+Third-party software
+--------------------
+  three.js        — MIT License, (c) 2010-2025 three.js authors
+  meshoptimizer   — MIT License, (c) 2016-2025 Arseny Kapoulkine
+  Vite            — MIT License, (c) 2019-present VoidZero Inc. and Vite contributors
+  Inter (webfont) — SIL Open Font License 1.1, (c) The Inter Project Authors

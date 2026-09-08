@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Human Atlas — Interactive 3D Anatomy</title>
+<meta name="description" content="An interactive 3D atlas of human anatomy built from the 2,234 BodyParts3D meshes." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="stage"></canvas>
+    <div class="panelabels" id="paneLabels" hidden>
+      <span data-i18n="split.paneA">Pane A</span>
+      <span data-i18n="split.paneB">Pane B</span>
+    </div>
+
+    <!-- masthead -->
+    <header class="masthead">
+      <div class="eyebrow"><span class="diamond">◈</span> <span data-i18n="app.eyebrow">Interactive anatomy</span></div>
+      <h1><span data-i18n="app.title">Human Atlas</span> <span class="badge3d">3D</span></h1>
+      <p class="sub"><span id="pieceTotal">—</span> <span data-i18n="app.sub">modeled pieces</span> &nbsp;·&nbsp; BodyParts3D</p>
+    </header>
+
+    <!-- search + language + info -->
+    <div class="topright">
+      <div class="search">
+        <svg viewBox="0 0 16 16" class="ico"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+        <input id="search" type="text" data-i18n-ph="search.placeholder" placeholder="Find a structure" autocomplete="off" spellcheck="false" />
+        <kbd>/</kbd>
+      </div>
+      <div class="langswitch" id="langSwitch" data-i18n-title="lang">
+        <button data-lang="en">EN</button><button data-lang="pt">PT</button>
+      </div>
+      <button class="iconbtn" id="infoBtn" data-i18n-title="info.title">
+        <svg viewBox="0 0 16 16" class="ico"><circle cx="8" cy="8" r="6.5"/><path d="M8 7.2v4M8 4.9v.1"/></svg>
+      </button>
+      <div class="results" id="results" hidden></div>
+    </div>
+
+    <!-- left rail: systems + cuts -->
+    <div class="leftrail">
+    <section class="panel systems" id="systemsPanel">
+      <div class="panel-head">
+        <span data-i18n="systems.title">Systems</span>
+        <span class="pill" id="systemCount">—</span>
+      </div>
+      <div class="panetabs" id="paneTabs" hidden>
+        <button class="panetab is-active" data-pane="A" data-i18n="split.paneA">Pane A</button>
+        <button class="panetab" data-pane="B" data-i18n="split.paneB">Pane B</button>
+      </div>
+      <div class="tabs" role="tablist">
+        <button class="tab is-active" data-group="all" data-i18n="systems.all">All</button>
+        <button class="tab" data-group="skeleton" data-i18n="systems.skeleton">Skeleton</button>
+        <button class="tab" data-group="organs" data-i18n="systems.organs">Organs</button>
+      </div>
+      <div class="syslist" id="sysList"></div>
+      <div class="panel-foot">
+        <span id="visibleCount">—</span>
+        <button class="linkbtn" id="hideAll" data-i18n="systems.hideAll">Hide all</button>
+      </div>
+    </section>
+
+    <!-- anatomical cuts -->
+    <section class="panel cuts" id="cutPanel">
+      <div class="panel-head">
+        <span data-i18n="cut.title">Anatomical cut</span>
+        <button class="linkbtn" id="cutClear" data-i18n="cut.off">Clear cuts</button>
+      </div>
+      <div class="cutrows" id="cutRows"></div>
+    </section>
+    </div>
+
+    <!-- explode -->
+    <div class="stagecaption" id="stageCaption" data-i18n="stage.body">Adult human · male</div>
+    <section class="panel explode">
+      <div class="explode-head">
+        <span data-i18n="explode.title">Explode anatomy</span>
+        <span class="pill" id="explodeVal">0 %</span>
+      </div>
+      <div class="explode-row">
+        <input id="explode" class="slider" type="range" min="0" max="100" value="0" step="0.5" />
+        <button class="iconbtn reset" id="resetExplode" data-i18n-title="explode.reset">
+          <svg viewBox="0 0 16 16" class="ico"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13 2.2V5h-2.8"/></svg>
+        </button>
+      </div>
+      <div class="explode-foot"><span data-i18n="explode.assembled">Assembled</span><span data-i18n="explode.every">Every piece</span></div>
+    </section>
+
+    <!-- view toolbar -->
+    <div class="viewbar">
+      <button data-view="A" data-i18n-title="view.A">A</button>
+      <button data-view="P" data-i18n-title="view.P">P</button>
+      <button data-view="S" data-i18n-title="view.S">S</button>
+      <button data-view="R" data-i18n-title="view.R">R</button>
+      <button data-view="spin" data-i18n-title="view.spin" class="round">
+        <svg viewBox="0 0 16 16" class="ico"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13 2.2V5h-2.8"/></svg>
+      </button>
+      <button data-view="split" data-i18n-title="view.split" class="round">
+        <svg viewBox="0 0 16 16" class="ico"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M8 3v10"/></svg>
+      </button>
+      <button data-view="home" data-i18n-title="view.home" class="round">
+        <svg viewBox="0 0 16 16" class="ico"><path d="M3 8a5 5 0 1 0 1.6-3.7"/><path d="M3 2.2V5h2.8"/></svg>
+      </button>
+    </div>
+
+    <!-- detail -->
+    <aside class="panel detail" id="detail" hidden>
+      <button class="closebtn" id="detailClose" aria-label="Close">×</button>
+      <div class="detail-sys" id="detailSystem">—</div>
+      <h2 id="detailTitle">—</h2>
+      <p class="detail-alt" id="detailAlt" hidden></p>
+      <p class="detail-desc" id="detailDesc">—</p>
+      <p class="detail-note" id="detailNote">—</p>
+      <div class="detail-grid">
+        <div><span class="k" data-i18n="detail.ref">Atlas reference</span><span class="v" id="detailFma">—</span></div>
+        <div><span class="k" data-i18n="detail.volume">Volume</span><span class="v" id="detailVolume">—</span></div>
+        <div><span class="k" data-i18n="detail.pieces">Selected pieces</span><span class="v" id="detailCount">1</span></div>
+      </div>
+      <div class="compare" id="compareBox" hidden>
+        <div class="compare-head" data-i18n="compare.title">Left / right comparison</div>
+        <div class="compare-bars" id="compareBars"></div>
+        <div class="compare-note" id="compareNote">—</div>
+      </div>
+      <a class="detail-link" id="detailSource" target="_blank" rel="noopener" data-i18n="detail.source">View anatomical source ↗</a>
+      <button class="primary" id="isolateBtn"><span class="isoIco">⛶</span> <span data-i18n="detail.isolate">Isolate structure</span> <span class="chev">›</span></button>
+      <button class="secondary" id="compareBtn" hidden><span class="isoIco">⇄</span> <span id="compareBtnLabel" data-i18n="detail.compare">Compare with the other side</span></button>
+      <button class="linkbtn wide" id="clearSel" data-i18n="detail.clear">Clear selection</button>
+    </aside>
+
+    <button class="resetpill" id="resetView" hidden>
+      <svg viewBox="0 0 16 16" class="ico"><path d="M3 8a5 5 0 1 0 1.6-3.7"/><path d="M3 2.2V5h2.8"/></svg>
+      <span data-i18n="view.reset">Reset view</span>
+    </button>
+
+    <!-- hover tooltip -->
+    <div class="tooltip" id="tooltip" hidden></div>
+
+    <div class="hints" data-i18n="hints">Drag to orbit · Pinch to zoom · Tap to inspect</div>
+    <a class="credits" id="creditsBtn" href="https://dbarchive.biosciencedbc.jp/en/bodyparts3d/desc.html" target="_blank" rel="noopener" data-i18n="credits">Source &amp; credits ↗</a>
+
+    <div class="loader" id="loader">
+      <div class="loader-inner">
+        <div class="loader-bar"><i id="loaderBar"></i></div>
+        <div class="loader-txt" id="loaderTxt">Loading atlas…</div>
+      </div>
+    </div>
+
+    <div class="modal" id="aboutModal" hidden>
+      <div class="modal-card">
+        <button class="closebtn" id="aboutClose" aria-label="Close">×</button>
+        <h3 data-i18n="info.title">About this atlas</h3>
+        <div id="aboutBody"></div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

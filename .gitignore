@@ -1,0 +1,8 @@
+node_modules/
+dist/
+# Source dataset (~600 MB): re-fetch with `npm run fetch:data`
+data/raw/
+data/obj/
+# Cached source lookups (re-fetch with npm run fetch:wikidata / fetch:wikipedia)
+data/wikidata.json
+data/wikipedia.json
