@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT } from './lib-bp3d.mjs';
 import { derivePtName } from './pt-derive.mjs';
+import { resolveMuscle } from './pt-muscles.mjs';
 
 const MAX_CHARS = 340;
 const MAX_DESC_DIST = 3;   // how far up the is-a tree a paragraph may come from
@@ -17,7 +18,11 @@ const MAX_DESC_DIST = 3;   // how far up the is-a tree a paragraph may come from
 export function loadSources() {
   const rd = f => (fs.existsSync(path.join(ROOT, 'data', f))
     ? JSON.parse(fs.readFileSync(path.join(ROOT, 'data', f), 'utf8')) : {});
-  return { wikidata: rd('wikidata.json'), wikipedia: rd('wikipedia.json') };
+  // miologia.json is the origin / insertion / action text from a Portuguese
+  // myology table, mapped onto muscle keys by `npm run map:miologia`. It is
+  // course material, so it lives in the gitignored data directory: with it the
+  // build writes those fields, without it the atlas is simply quieter.
+  return { wikidata: rd('wikidata.json'), wikipedia: rd('wikipedia.json'), miologia: rd('miologia.json') };
 }
 
 // Trim a Wikipedia lead to a couple of clean sentences.
@@ -62,7 +67,12 @@ function findHit(chain, chainNames, wikidata, pick) {
   return null;
 }
 
-export function describePart(part, { wikidata, wikipedia }, systemInfo) {
+const fold = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const stem = w => w.replace(/(oes|ais|eis|is|es|s)$/, '');
+const wordSet = s => new Set(fold(s).replace(/[().,;:º°]/g, ' ').split(/\s+/)
+  .filter(Boolean).map(stem));
+
+export function describePart(part, { wikidata, wikipedia, miologia = {} }, systemInfo) {
   const { chain, chainNames = [], name, system, isaParent, partofParent } = part;
   const side = sideOf(name);
   const bare = norm(stripSide(name));
@@ -81,6 +91,24 @@ export function describePart(part, { wikidata, wikipedia }, systemInfo) {
       namePt = side && ptHit.i > 0 ? withSide(base, side) : base;
     }
   }
+  // A muscle the myology table names: that name is verified, and beats both
+  // Wikidata and the vocabulary.
+  const muscle = part.system === 'muscular' ? resolveMuscle(name) : null;
+  const muscleText = muscle ? miologia[muscle.key] : null;
+  if (muscle) {
+    // Keys that span an "of" ("plantar interosseous of foot") cannot be spliced
+    // into the phrase, so for those the vocabulary keeps the wording and the
+    // name only counts as verified when it already says what the table says.
+    const splice = !muscle.key.includes(' of ');
+    const derived = derivePtName(name, splice ? { extra: { [muscle.key]: [muscle.pt, muscle.gender] } } : {});
+    if (derived) {
+      namePt = derived.name;
+      const said = wordSet(derived.name);
+      const verified = derived.usedExtra || [...wordSet(muscle.pt)].every(w => said.has(w));
+      namePtDerived = !verified;
+    }
+  }
+
   // No verified name: derive one from the vocabulary, and say that it is derived.
   if (!namePt) {
     const derived = derivePtName(name);
@@ -100,6 +128,8 @@ export function describePart(part, { wikidata, wikipedia }, systemInfo) {
   return {
     namePt,
     namePtDerived,
+    // Origin, insertion and action, when the table covers this muscle.
+    ...(muscleText ? { origem: muscleText.o, insercao: muscleText.i, acao: muscleText.a } : {}),
     descEn: enText ?? structural ?? systemInfo.en[system],
     descPt: ptText ?? systemInfo.pt[system],
     srcEn: enText ? { t: enHit.value, exact: enHit.i === 0 } : null,

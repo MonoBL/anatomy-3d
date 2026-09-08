@@ -343,7 +343,7 @@ async function main() {
     pt: Object.fromEntries(ALL_SYSTEMS.map(s => [s.id, s.info.pt])),
   };
   const text = { en: {}, pt: {} };
-  let ptNamed = 0, ptDerived = 0, wikiEn = 0, wikiPt = 0;
+  let ptNamed = 0, ptDerived = 0, wikiEn = 0, wikiPt = 0, myology = 0;
   for (const r of raw) {
     const t = describePart({ ...r, name: r.name }, sources, systemInfo);
     text.en[r.id] = { d: t.descEn, ...(t.srcEn ? { s: t.srcEn.t } : {}) };
@@ -352,7 +352,12 @@ async function main() {
       ...(t.namePt ? { n: t.namePt } : {}),
       ...(t.namePtDerived ? { dn: 1 } : {}),
       ...(t.srcPt ? { s: t.srcPt.t } : {}),
+      // Origin / insertion / action, for the muscles the myology table covers.
+      ...(t.origem ? { o: t.origem } : {}),
+      ...(t.insercao ? { in: t.insercao } : {}),
+      ...(t.acao ? { ac: t.acao } : {}),
     };
+    if (t.origem || t.insercao || t.acao) myology++;
     if (t.namePt && !t.namePtDerived) ptNamed++;
     if (t.namePtDerived) ptDerived++;
     if (t.srcEn) wikiEn++;
@@ -363,7 +368,8 @@ async function main() {
     fs.writeFileSync(path.join(OUT_DIR, `text-${lang}.json.gz`), zlib.gzipSync(json, { level: 9 }));
   }
   log(`text: ${ptNamed} verified + ${ptDerived} derived portuguese names, `
-    + `${wikiEn} en / ${wikiPt} pt wikipedia paragraphs`);
+    + `${wikiEn} en / ${wikiPt} pt wikipedia paragraphs, `
+    + `${myology} muscles with origin/insertion/action`);
 
   const index = {
     version: 2,
@@ -382,7 +388,7 @@ async function main() {
     })),
     quant: { min: qMin, scale: qScale },
     grid: { cols, rows, cell },
-    coverage: { ptNames: ptNamed, ptDerived, wikiEn, wikiPt },
+    coverage: { ptNames: ptNamed, ptDerived, wikiEn, wikiPt, myology },
     systems,
     parts: raw.map(r => ({
       i: r.id, e: r.eid, n: titleCase(r.name), f: r.fma, s: r.system,

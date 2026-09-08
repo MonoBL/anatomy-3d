@@ -39,8 +39,10 @@ function pluralize(word) {
 // Longest-first so "flexor digitorum" wins over "flexor".
 const COMPOUND_KEYS = Object.keys(COMPOUNDS).sort((a, b) => b.length - a.length);
 
-// One segment: a noun phrase with no "of" in it.
-function segment(words) {
+// One segment: a noun phrase with no "of" in it. `extra` holds compounds the
+// caller supplies — the verified muscle names, which must win over the
+// built-in vocabulary.
+function segment(words, extra = null) {
   const lower = words.map(w => w.toLowerCase());
   const phrase = lower.join(' ');
   const sides = [];
@@ -56,6 +58,21 @@ function segment(words) {
       sides.push(side);
       rest = rest.replace(re, ' ');
       known++; total++;
+    }
+  }
+
+  // A caller-supplied name first: it is verified, the vocabulary is not.
+  let usedExtra = false;
+  if (extra) {
+    for (const key of Object.keys(extra).sort((a, b) => b.length - a.length)) {
+      if (!rest.includes(key)) continue;
+      const [pt, g] = extra[key];
+      rest = rest.replace(key, ' ');
+      const count = key.split(/\s+/).length;
+      known += count; total += count;
+      usedExtra = true;
+      if (!noun) { noun = pt; gender = g; } else { adjectives.push(pt); }
+      break;
     }
   }
 
@@ -108,15 +125,15 @@ function segment(words) {
     const word = form(ADJECTIVES[s], gender);
     out.push(plural ? pluralize(word) : word);
   }
-  return { text: out.join(' '), gender, plural, known, total };
+  return { text: out.join(' '), gender, plural, known, total, usedExtra };
 }
 
-export function derivePtName(englishName) {
+export function derivePtName(englishName, { extra = null } = {}) {
   if (!englishName) return null;
   // "Set of ..." and "... Tree" are collection names in BP3D; they translate
   // like anything else, so nothing special is needed here.
   const parts = englishName.split(/\s+of\s+(?:the\s+)?/i);
-  const segments = parts.map(p => segment(p.split(/\s+/)));
+  const segments = parts.map(p => segment(p.split(/\s+/), extra));
   if (segments.some(s => !s)) return null;
 
   let known = 0, total = 0;
@@ -130,5 +147,9 @@ export function derivePtName(englishName) {
   }
   // One capital at the front, the rest lower case, as anatomical names go.
   text = text.charAt(0).toUpperCase() + text.slice(1);
-  return { name: text.replace(/\s+/g, ' ').trim(), confidence: known / total };
+  return {
+    name: text.replace(/\s+/g, ' ').trim(),
+    confidence: known / total,
+    usedExtra: segments.some(s => s.usedExtra),
+  };
 }

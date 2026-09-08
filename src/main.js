@@ -1114,6 +1114,17 @@ function selectPart(id, { focus = false, keepSelection = false } = {}) {
   $('#detailAlt').textContent = note;
   $('#detailAlt').hidden = !note;
   $('#detailDesc').textContent = txt.d ?? sys.info?.[state.lang] ?? '';
+  // Origin, insertion and action: Portuguese text from a myology table, so it
+  // only shows in Portuguese.
+  const myo = state.lang === 'pt' && (txt.o || txt.in || txt.ac);
+  $('#detailMyology').hidden = !myo;
+  if (myo) {
+    for (const [id, val] of [['#detailOrigem', txt.o], ['#detailInsercao', txt.in], ['#detailAcao', txt.ac]]) {
+      const row = $(id).closest('.myorow');
+      $(id).textContent = val ?? '';
+      row.hidden = !val;
+    }
+  }
   $('#detailNote').textContent = txt.s
     ? `${state.t('src.wikipedia')} · ${txt.s}`
     : state.t('src.derived');
@@ -1393,14 +1404,17 @@ function resetView() {
 const VIEW_KEYS = { a: 'A', p: 'P', s: 'S', l: 'L', r: 'R', f: 'I' };
 
 // ----------------------------------------------------------------- search
+// Accents are optional when searching: "bicipite" has to find "bicípite".
+const fold = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
 function runSearch() {
   const input = $('#search'), results = $('#results');
-  const q = input.value.trim().toLowerCase();
+  const q = fold(input.value.trim());
   if (!q) { results.hidden = true; state.results = []; return; }
   const hits = [];
   for (const p of state.index.parts) {
     if (state.region && !state.viewer.inRegion(p)) continue;
-    const name = partName(p).toLowerCase();
+    const name = fold(partName(p));
     const at = name.indexOf(q);
     if (at >= 0) hits.push({ p, score: at + (name.length - q.length) * 0.02 });
     if (hits.length > 400) break;

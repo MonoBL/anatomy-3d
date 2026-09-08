@@ -9,3 +9,8 @@ data/wikipedia.json
 # Cached occlusion samples for the layer pass (rebuilt automatically)
 data/layer-samples.json
 .vercel
+
+# Myology table text (course material): local only, regenerate with
+# python3 tools/extract-miologia.py <pdf> && npm run map:miologia
+data/miologia-raw.json
+data/miologia.json

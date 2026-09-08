@@ -201,14 +201,22 @@ Portuguese for every structure, offline storage, and the deploy.
 These are the ones that need something from outside the repo, so they are written down
 rather than half-started.
 
-**1b — verified Portuguese names.** All 2,234 structures now have a Portuguese name: 790
-verified against Wikidata/Wikipedia, 1,444 derived mechanically by `tools/pt-derive.mjs` from
-the vocabulary in `tools/pt-terms.mjs`, and the panel marks a derived name as unverified. To
-promote derived names to verified, the missing ingredient is a source: the Portuguese
-Terminologia Anatómica as data (CSV/XLSX), or a faculty glossary. With FMA ids or English
-names in one column, the mapping is a small script and the `dn` flag disappears for whatever
-it covers. Reviewing the derived names by hand would work too — `npm run report:regions` is
-the model for a report that lists them.
+**1b — verified Portuguese names.** All 2,234 structures have a Portuguese name: 925
+verified, 1,309 derived mechanically by `tools/pt-derive.mjs` from the vocabulary in
+`tools/pt-terms.mjs`, and the panel marks a derived name as unverified.
+
+Part of this is now sourced: a Portuguese myology table (the faculty's "Estrutura e Função do
+Sistema Músculo-Esquelético") gave 136 muscle names, in `tools/pt-muscles.mjs`, and with them
+the origin, insertion and action of 316 muscle meshes. The names are nomenclature and live in
+the repo; the descriptive text is course material and does **not**, so the build reads it from
+`data/miologia.json` (gitignored) and simply says less when that file is absent. Regenerate
+with `pip install pdfplumber`, `python3 tools/extract-miologia.py <pdf>`, then
+`npm run map:miologia` — the mapper reports every row it could not place.
+
+What is still missing is the same kind of source for everything that is not a muscle: the
+1,309 derived names are mostly vessels and branches. Terminologia Anatómica as data (CSV or
+XLSX), or any table with an FMA id or an English name in one column, and the mapping is a
+small script.
 
 **2 — peripheral nerves.** BodyParts3D's 139 nervous meshes are all cranial: there is no
 brachial plexus, no sciatic nerve, nothing in the limbs. No pipeline change can conjure them.

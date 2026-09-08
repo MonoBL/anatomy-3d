@@ -69,10 +69,16 @@ tap goes through anything ghosted; anatomical cuts on the sagittal, coronal and 
 and an explode slider that scatters the body and then lays every one of the 2,234 pieces out
 on a flat inventory wall.
 
-**Portuguese.** Interface, system names, structure paragraphs and structure names. 790 names
-are verified against Wikidata and Wikipedia; the other 1,444 are derived mechanically from the
-English by an anatomical vocabulary in the repo, and the panel marks a derived name as
-unverified rather than passing it off.
+**Portuguese.** Interface, system names, structure paragraphs and structure names. 925 names
+are verified — against Wikidata and Wikipedia, and against a Portuguese myology table for the
+muscles; the other 1,309 are derived mechanically from the English by an anatomical vocabulary
+in the repo, and the panel marks a derived name as unverified rather than passing it off.
+
+**Origin, insertion, action.** For 316 muscle meshes the panel carries the three fields a
+student actually revises. They come from a myology table, which is course material: the
+repo carries the muscle *names* it verifies (nomenclature is fact) and reads the descriptive
+text from a local file that is not redistributed — `tools/extract-miologia.py` and
+`npm run map:miologia` rebuild it from the PDF.
 
 **On a tablet.** A thumb-reachable toolbar, 30 steps of undo, saved views, hide-interface for
 a clean screenshot, add-to-home-screen, and one button that stores the whole 27 MB atlas on
