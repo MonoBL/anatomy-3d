@@ -7,7 +7,7 @@
 **An interactive 3D atlas of human anatomy — 2,234 individually modelled structures,
 15 systems, English and European Portuguese.**
 
-[**Open it →**](https://anatomia-ochre.vercel.app) · built for studying on an iPad, offline
+Built for studying on an iPad, offline. Clone it and `npm run dev`.
 
 <img src="docs/screenshots/body-muscles.webp" width="320" alt="Whole body, muscles and bones" />
 
@@ -20,7 +20,7 @@ Every structure here is a real mesh from
 model published by the Database Center for Life Science (DBCLS), Japan. Nothing is a stand-in
 and nothing is generated.
 
-I built it from scratch, taking [ashemag/human-atlas](https://github.com/ashemag/human-atlas)
+Built from scratch, taking [ashemag/human-atlas](https://github.com/ashemag/human-atlas)
 (MIT) as the reference for the model, the palette and the lighting — and then went well past
 it, because the point was a tool someone could actually revise from: pick a region, peel the
 muscles layer by layer, read the structure's name in Portuguese, cut the body open, pin what
@@ -172,4 +172,4 @@ Structure paragraphs and verified Portuguese names come from **Wikipedia** and *
 The reference implementation, [ashemag/human-atlas](https://github.com/ashemag/human-atlas),
 is MIT. This viewer is distributed under CC BY-SA — see `NOTICE`.
 
-Built by [Nuno Mendes](https://github.com/MonoBL).
+Built by [Mono Bola](https://github.com/MonoBL).

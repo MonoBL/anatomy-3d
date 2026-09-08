@@ -202,7 +202,7 @@ cards mostly empty — they frame the visible content instead.
 | 5 | Views | 2.3 + views sheet + joint shortcuts | **done** — 6 directions, LAT/MED by side, 25 joint landmarks |
 | 6 | Transparency | second pass + pick-through | **done** — three steps, selection stays solid |
 | 7 | Pins & bookmarks | labels, leader lines, saved states | **done** — pins follow the model, saved views restore everything |
-| 8 | Polish & deploy | hide interface, layer fade, PT audit, offline, Vercel | **done** — <https://anatomia-ochre.vercel.app> |
+| 8 | Polish & deploy | hide interface, layer fade, PT audit, offline, Vercel | **done** |
 
 Phases 1 and 3 are the data-heavy ones and carry the risk; 2, 4-8 are mostly UI.
 
@@ -217,9 +217,10 @@ Phases 1 and 3 are the data-heavy ones and carry the risk; 2, 4-8 are mostly UI.
 - **Regions**: 4 tabs, as the reference — Head / Trunk / Upper limb / Lower limb. Neck folds
   into Head-and-neck, pelvis into Trunk; both stay available as sub-regions.
 - **Theme**: stays light. The screenshots are dark, the look does not change.
-- **Deploy**: live at <https://anatomia-ochre.vercel.app> (Vercel, static, `vercel --prod`).
-  The binaries are served `immutable`, so a second visit costs nothing; the service worker
-  keeps the shell and the Offline button stores the 27 MB atlas on the device.
+- **Deploy**: on Vercel, static, from a push to `main` (the URL stays private — it is a
+  personal deployment, not a public site). The binaries are served `immutable`, so a second
+  visit costs nothing; the service worker keeps the shell and the Offline button stores the
+  27 MB atlas on the device.
 
 ## 7b. Still open
 

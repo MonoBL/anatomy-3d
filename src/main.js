@@ -142,7 +142,7 @@ function renderAbout() {
     adjectives agreeing in gender — and the panel marks them as derived rather than passing
     them off as verified. Nothing is machine-translated.</p>
     <p><strong>Who made this.</strong> Built by
-    <a href="https://github.com/MonoBL" target="_blank" rel="noopener">Nuno Mendes</a>, from
+    <a href="https://github.com/MonoBL" target="_blank" rel="noopener">Mono Bola</a>, from
     scratch, taking <a href="https://github.com/ashemag/human-atlas" target="_blank" rel="noopener">ashemag/human-atlas</a>
     (MIT) as the reference for the model, the palette and the lighting, and going well past it:
     four body regions with sub-regions and a side switch, ten muscular layers peeled by real
@@ -167,7 +167,7 @@ function renderAbout() {
     adjetivos a concordar em género — e o painel marca-as como derivadas em vez de as
     apresentar como verificadas. Nada é traduzido por máquina.</p>
     <p><strong>Quem fez isto.</strong> Desenvolvido de raiz por
-    <a href="https://github.com/MonoBL" target="_blank" rel="noopener">Nuno Mendes</a>, tendo
+    <a href="https://github.com/MonoBL" target="_blank" rel="noopener">Mono Bola</a>, tendo
     como referência o <a href="https://github.com/ashemag/human-atlas" target="_blank" rel="noopener">ashemag/human-atlas</a>
     (MIT) para o modelo, a paleta e a iluminação, e indo bastante além dele: quatro regiões do
     corpo com sub-regiões e escolha de lado, dez camadas musculares descascadas por oclusão

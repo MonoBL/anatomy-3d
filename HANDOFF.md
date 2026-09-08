@@ -2,8 +2,8 @@
 
 State of the project as of 2026-09-08, after the second pass (regions, layers, contents,
 tools, deploy). Written so the next session can pick up without re-deriving anything.
-Repo <https://github.com/MonoBL/anatomy-3d>, live at <https://anatomia-ochre.vercel.app>
-(public, CC BY-SA 2.1 JP).
+Repo <https://github.com/MonoBL/anatomy-3d> (public, CC BY-SA 2.1 JP). The deployment is
+personal: the URL is deliberately not written down in the repo — `vercel ls anatomia` has it.
 
 ## What it is
 
@@ -158,7 +158,7 @@ Do not re-learn these:
   made every muscle look like plastic.
 - **`renderer.setViewport` takes logical pixels** and multiplies by the pixel ratio itself.
   Passing device pixels doubles the viewport on retina — the model looked shoved off screen on
-  Nuno's Mac while looking fine at dpr 1.
+  a retina Mac while looking fine at dpr 1.
 - **When a render target is bound, three uses `renderTarget.viewport`,** not the renderer's,
   unless `setViewport` is called after `setRenderTarget`.
 - **`centroid` and `flat` are reserved words in GLSL**, and a backtick inside a `/* glsl */`
@@ -184,11 +184,11 @@ Do not re-learn these:
 
 ## Where it stands
 
-Live at <https://anatomia-ochre.vercel.app> — Vercel, static, `vercel --prod --yes` from the
-repo root (the CLI's project link lives in `.vercel/`, gitignored). Nothing is connected to
-GitHub, so a deploy is that one command. The (i) panel credits the work and links both
-repositories; the button beside it explains how to put the atlas on an iPad's home screen and
-store it for offline use.
+Deployed on Vercel as a personal instance — static, and a push to `main` deploys it, since
+the project is connected to the GitHub repo (`vercel --prod --yes` still works from the repo
+root; the CLI's project link lives in `.vercel/`, gitignored). The URL is not written down
+here on purpose. The (i) panel credits the work and links both repositories; the button beside
+it explains how to put the atlas on an iPad's home screen and store it for offline use.
 
 Everything planned in `PLAN.md` is done: regions and sub-regions with a side switch, ten
 muscular layers peeled by occlusion, the working toolbar with thirty steps of undo, the
@@ -241,7 +241,7 @@ so nothing else in the pipeline needs to know about it.
 
 ## Working preferences captured
 
-Caveman mode, PT conversation. Personal projects commit as
-`Nuno Mendes <nunom3ndes2005@gmail.com>` — never the Veesion address. When a visual reference
-is named, match it literally rather than inventing detail; fix flatness with lighting and
-geometry, not procedural texture.
+Short answers, Portuguese conversation. This is a personal project: it commits under the
+personal git identity (`Mono Bola`), never a work one, and the deployment URL stays out of the
+repo. When a visual reference is named, match it literally rather than inventing detail; fix
+flatness with lighting and geometry, not procedural texture.
