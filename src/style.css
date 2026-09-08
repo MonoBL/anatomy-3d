@@ -926,3 +926,8 @@ button { cursor: pointer; border: 0; background: none; }
 }
 .myorow p { margin: 0; font-size: 11px; line-height: 1.5; color: var(--ink-2); }
 .myosrc { margin: 0; font-size: 9px; color: var(--ink-3); }
+
+.modal-card code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9.5px; padding: 1px 4px; border-radius: 4px; background: var(--bg-2);
+}

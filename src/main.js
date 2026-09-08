@@ -7,6 +7,15 @@ import { getThumb, putThumb, pruneThumbs } from './thumbs.js';
 import { loadBookmarks, addBookmark, removeBookmark } from './bookmarks.js';
 
 const $ = sel => document.querySelector(sel);
+
+// Stamped by vite (see vite.config.js); the fallbacks keep this file runnable
+// outside a build.
+const BUILD = {
+  version: typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev',
+  time: typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : new Date().toISOString(),
+  commit: typeof __COMMIT__ === 'string' ? __COMMIT__ : 'unknown',
+};
+const stamp = iso => (iso ? `${iso.slice(0, 16).replace('T', ' ')} UTC` : '—');
 const FMA_URL = id => `https://bioportal.bioontology.org/ontologies/FMA?p=classes&conceptid=http%3A%2F%2Fpurl.org%2Fsig%2Font%2Ffma%2F${id.toLowerCase()}`;
 const WIKI_URL = (lang, title) => `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
 
@@ -149,7 +158,10 @@ function renderAbout() {
     occlusion, joint shortcuts, a contents screen of plates, transparency, pins, saved views,
     anatomical cuts, European Portuguese throughout, and an offline mode for a tablet. Source:
     <a href="https://github.com/MonoBL/anatomy-3d" target="_blank" rel="noopener">MonoBL/anatomy-3d</a>.</p>
-    <p class="lic">Atlas data built ${state.index.generated?.slice(0, 16).replace('T', ' ')} UTC.<br />
+    <p class="lic"><strong>Version ${BUILD.version}</strong> · built ${stamp(BUILD.time)}
+    · commit <code>${BUILD.commit}</code><br />
+    Atlas data built ${stamp(state.index.generated)} · ${n.format(total)} structures,
+    ${n.format(cov.myology ?? 0)} with origin, insertion and action.<br />
     BodyParts3D, © The Database Center for Life Science, licensed under
     <a href="https://creativecommons.org/licenses/by-sa/2.1/jp/deed.en" target="_blank" rel="noopener">CC BY-SA 2.1 Japan</a>.
     Text from Wikipedia under CC BY-SA. This viewer is shared under the same licence.</p>`;
@@ -175,7 +187,10 @@ function renderAbout() {
     marcadores, vistas guardadas, cortes anatómicos, português europeu em todo o interface e
     modo offline para tablet. Código:
     <a href="https://github.com/MonoBL/anatomy-3d" target="_blank" rel="noopener">MonoBL/anatomy-3d</a>.</p>
-    <p class="lic">Dados do atlas gerados a ${state.index.generated?.slice(0, 16).replace('T', ' ')} UTC.<br />
+    <p class="lic"><strong>Versão ${BUILD.version}</strong> · compilada a ${stamp(BUILD.time)}
+    · commit <code>${BUILD.commit}</code><br />
+    Dados do atlas gerados a ${stamp(state.index.generated)} · ${n.format(total)} estruturas,
+    ${n.format(cov.myology ?? 0)} com origem, inserção e ação.<br />
     BodyParts3D, © The Database Center for Life Science, sob licença
     <a href="https://creativecommons.org/licenses/by-sa/2.1/jp/deed.en" target="_blank" rel="noopener">CC BY-SA 2.1 Japão</a>.
     Textos da Wikipédia sob CC BY-SA. Este visualizador é partilhado sob a mesma licença.</p>`;
