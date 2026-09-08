@@ -784,31 +784,32 @@ button { cursor: pointer; border: 0; background: none; }
   display: flex; flex-direction: column; align-items: center; gap: 8px;
 }
 .explode .pill { padding: 1px 5px; font-size: 9px; font-variant-numeric: tabular-nums; }
-.explode .vslider {
-  flex: 1 1 auto; width: 22px; min-height: 190px; margin: 0;
-  writing-mode: vertical-lr; direction: rtl;         /* modern browsers */
-  -webkit-appearance: slider-vertical;               /* older WebKit */
-  appearance: slider-vertical;
-  background: none;
+/* A rotated horizontal input rather than a vertical one: `slider-vertical`
+   and `writing-mode` both leave the thumb natively styled and off the track
+   in one browser or another, and this keeps the same thumb as every other
+   slider in the app. */
+.explode .vtrack {
+  position: relative; flex: none; width: 22px;
+  /* The rotated input's width is this height, so the two have to match. */
+  height: var(--vlen, 190px);
 }
-.explode .vslider::-webkit-slider-runnable-track {
-  width: 3px; height: auto; border-radius: 3px; background: rgba(20, 22, 26, .14);
+.explode .vslider {
+  position: absolute; top: 50%; left: 50%;
+  width: var(--vlen, 190px); height: 22px; margin: 0; flex: none;
+  transform: translate(-50%, -50%) rotate(-90deg);   /* up increases */
 }
 .explode .iconbtn.reset { width: 24px; height: 24px; }
-/* A vertical range input keeps its native thumb in most browsers, so the
-   accent colour is the only way to make it match the rest. */
-.explode .vslider { accent-color: var(--accent); }
+
 
 /* The view rail moves up to make room for it. */
 .viewbar { top: 96px; transform: none; }
 
 @media (max-width: 900px) {
   .explode { top: auto; bottom: calc(150px + var(--sab)); right: 16px; }
-  .explode .vslider { min-height: 150px; }
   .viewbar { top: 96px; right: 16px; }
 }
 .is-touch .explode { width: 54px; }
-.is-touch .explode .vslider { width: 30px; }
+.is-touch .explode .vtrack { width: 30px; }
 
 /* The region strips move under the search rather than fighting it for the top
    row: at an iPad's width the Portuguese labels and the search field cannot
@@ -854,6 +855,7 @@ button { cursor: pointer; border: 0; background: none; }
   }
   @keyframes sheetIn { from { opacity: 0; transform: translateY(6px); } }
   .explode { top: auto; bottom: calc(178px + var(--sab)); right: 16px; }
+  .explode { --vlen: 150px; }
 }
 
 /* On a short screen the toolbar reaches the corner the attribution link sits
