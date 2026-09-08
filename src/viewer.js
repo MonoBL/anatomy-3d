@@ -25,6 +25,9 @@ export const ANATOMICAL_COLORS = {
 };
 
 // World-space box clip, shared by the colour and picking passes.
+// The body surface is always drawn as glass.
+const SKIN_ALPHA = 0.1;
+
 const CLIP = /* glsl */`
 uniform vec3 uClipMin, uClipMax;
 uniform float uClipOn;
@@ -42,7 +45,7 @@ uniform sampler2D uPartTex, uSlotTex, uExtraTex, uStateTex;
 uniform vec2 uTexSize;
 uniform float uExplode, uInventory, uExplodeDist, uSelected, uHovered, uCompare;
 varying vec3 vWorld;
-varying float vState, vPid, vVisible;
+varying float vState, vPid, vVisible, vAlpha;
 
 vec2 texUv(float i) {
   float x = mod(i, uTexSize.x);
@@ -68,6 +71,7 @@ vec3 partPosition() {
   vec3 wp = mix(p + scatter, p - c + d1.xyz, uInventory);
   vPid = pid;
   vVisible = d0.w;
+  vAlpha = st.y;
   vWorld = wp;
   // The primary selection and the rest of a multi-selection tint alike; the
   // compare partner and the hover keep their own colours.
@@ -80,7 +84,7 @@ vec3 partPosition() {
 
 const PART_FRAG_PRELUDE = CLIP + /* glsl */`
 varying vec3 vWorld;
-varying float vState, vVisible;
+varying float vState, vVisible, vAlpha;
 `;
 
 // Structures grouped into one system share a material, as they do upstream;
@@ -91,6 +95,11 @@ const PART_FRAG_ALBEDO = /* glsl */`
   else if (vState > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), 0.22);
 `;
 
+// A part is either solid or faded, and each pass throws away the other's
+// fragments: one mesh cannot depth-write for some fragments and not others.
+const OPAQUE_DISCARD = 'if (vAlpha < 0.999) discard;';
+const GHOST_DISCARD = 'if (vAlpha >= 0.999) discard;';
+
 const PICK_VERT = PART_VERT_PRELUDE + /* glsl */`
 void main() {
   gl_Position = projectionMatrix * viewMatrix * vec4(partPosition(), 1.0);
@@ -98,10 +107,12 @@ void main() {
 `;
 
 const PICK_FRAG = CLIP + /* glsl */`
-varying float vPid, vVisible;
+varying float vPid, vVisible, vAlpha;
 varying vec3 vWorld;
 void main() {
-  if (vVisible < 0.5 || clipped(vWorld)) discard;
+  // Barely-there structures are not pickable, so a tap goes through a ghosted
+  // body surface to the muscle underneath.
+  if (vVisible < 0.5 || vAlpha < 0.15 || clipped(vWorld)) discard;
   float id = vPid + 1.0;               // 0 is reserved for "nothing"
   gl_FragColor = vec4(mod(id, 256.0) / 255.0, floor(id / 256.0) / 255.0, 0.0, 1.0);
 }
@@ -127,6 +138,7 @@ export class Viewer {
     this.parts = index.parts;
     this.byId = new Map(index.parts.map(p => [p.i, p]));
     this.meshes = new Map();
+    this.ghostMeshes = new Map();
     this.hovered = -1;
     this.selected = -1;
     this.isolated = false;
@@ -140,6 +152,9 @@ export class Viewer {
     this.regionParts = null;
     // How many muscular layers have been peeled away, superficial first.
     this.peel = 0;
+    // Fade everything that is not selected, so a structure can be read in
+    // place. 0 is off; the value is the opacity the rest drops to.
+    this.ghostLevel = 0;
     this.systemVisible = new Map(index.systems.map(s => [s.id, true]));
 
     const bmin = index.bounds.min, bmax = index.bounds.max;
@@ -195,7 +210,7 @@ export class Viewer {
     }
     // x: selected, y: opacity (used from the transparency work on), z: layer.
     this.stateData = new Float32Array(w * h * 4);
-    for (const p of this.parts) this.stateData[p.i * 4 + 1] = 1;
+    for (const p of this.parts) this.stateData[p.i * 4 + 1] = p.s === 'integumentary' ? SKIN_ALPHA : 1;
     this.stateTex = makeDataTexture(this.stateData, w, h);
     this.partTex = makeDataTexture(this.partData, w, h);
     this.slotTex = makeDataTexture(this.slotData, w, h);
@@ -250,15 +265,43 @@ export class Viewer {
     // Positions are quantised, so three cannot derive usable bounds.
     g.boundingSphere = new THREE.Sphere(this.center.clone(), 40);
 
-    const ghost = system.id === 'integumentary';
+    // The body surface is a reference shell: it is permanently faded, which
+    // means it lives in the ghost pass and never draws in the solid one.
+    const material = this.partMaterial(system, {
+      opacity: 1, transparent: false, ghost: false,
+    });
+    const mesh = new THREE.Mesh(g, material);
+    mesh.frustumCulled = false;
+    mesh.name = system.id;
+    this.scene.add(mesh);
+    this.meshes.set(system.id, mesh);
+
+    // A second mesh over the same geometry draws whatever is currently faded:
+    // it blends without writing depth, and each pass discards the other's
+    // fragments, so a solid selection stays solid inside a ghosted body.
+    const ghostMesh = new THREE.Mesh(g, this.partMaterial(system, {
+      opacity: 1, transparent: true, ghost: true,
+    }));
+    ghostMesh.frustumCulled = false;
+    ghostMesh.name = `${system.id}:ghost`;
+    ghostMesh.renderOrder = 2;
+    ghostMesh.visible = false;
+    this.scene.add(ghostMesh);
+    this.ghostMeshes.set(system.id, ghostMesh);
+
+    this.applyVisibility();
+  }
+
+  // One material per system per pass. `ghost` keeps the faded fragments and
+  // blends them; the other keeps the solid ones and writes depth.
+  partMaterial(system, { opacity, transparent, ghost }) {
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(ANATOMICAL_COLORS[system.id] ?? system.color),
       metalness: 0.08,
       roughness: 0.53,
       side: THREE.DoubleSide,
-      // The body surface is a reference shell, so it reads as glass.
-      transparent: ghost,
-      opacity: ghost ? 0.1 : 1,
+      transparent,
+      opacity,
       depthWrite: !ghost,
     });
     material.onBeforeCompile = shader => {
@@ -270,18 +313,15 @@ export class Viewer {
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <clipping_planes_fragment>',
         `#include <clipping_planes_fragment>
-        if (vVisible < 0.5 || clipped(vWorld)) discard;`);
+        if (vVisible < 0.5 || clipped(vWorld)) discard;
+        ${ghost ? GHOST_DISCARD : OPAQUE_DISCARD}`);
       shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <color_fragment>', `#include <color_fragment>\n${PART_FRAG_ALBEDO}`);
+        '#include <color_fragment>',
+        `#include <color_fragment>\n${PART_FRAG_ALBEDO}${ghost ? '\n  diffuseColor.a *= vAlpha;' : ''}`);
     };
-    // Every system shares one program; three keys on the material, so say so.
-    material.customProgramCacheKey = () => 'atlas-part';
-    const mesh = new THREE.Mesh(g, material);
-    mesh.frustumCulled = false;
-    mesh.name = system.id;
-    this.scene.add(mesh);
-    this.meshes.set(system.id, mesh);
-    this.applyVisibility();
+    // Every system shares a program per pass; three keys on the material.
+    material.customProgramCacheKey = () => (ghost ? 'atlas-ghost' : 'atlas-part');
+    return material;
   }
 
   // ------------------------------------------------------------- state
@@ -381,6 +421,7 @@ export class Viewer {
   usePane(pane) {
     this.uniforms.uPartTex.value = pane === 'B' ? this.partTexB : this.partTex;
     for (const [id, mesh] of this.meshes) mesh.visible = this.meshVisible[pane].get(id) !== false;
+    this.applyGhostPass();
   }
 
   setSplit(on) {
@@ -408,6 +449,7 @@ export class Viewer {
     if (this.clipSide !== side) {
       this.clipSide = side;
       for (const mesh of this.meshes.values()) mesh.material.side = side;
+      for (const mesh of this.ghostMeshes.values()) mesh.material.side = side;
       this.pickMaterial.side = side;
     }
   }
@@ -438,8 +480,35 @@ export class Viewer {
   }
 
   writeSelection() {
-    for (const p of this.parts) this.stateData[p.i * 4] = this.selection.has(p.i) ? 1 : 0;
+    const fade = this.ghostLevel;
+    for (const p of this.parts) {
+      const selected = this.selection.has(p.i);
+      this.stateData[p.i * 4] = selected ? 1 : 0;
+      // With something selected, transparency fades everything else; with
+      // nothing selected it fades the lot, which is how the reference app
+      // behaves — a look inside rather than a highlight. The body surface
+      // stays glass either way, unless it is what was picked.
+      const skin = p.s === 'integumentary';
+      this.stateData[p.i * 4 + 1] = selected ? 1
+        : skin ? SKIN_ALPHA
+        : (fade || 1);
+    }
     this.stateTex.needsUpdate = true;
+    this.applyGhostPass();
+  }
+
+  // The ghost pass only has to run for systems that actually have faded parts.
+  applyGhostPass() {
+    for (const [id, mesh] of this.ghostMeshes) {
+      const solid = this.meshes.get(id);
+      const needed = this.ghostLevel > 0 || id === 'integumentary';
+      mesh.visible = needed && !!solid?.visible;
+    }
+  }
+
+  setTransparency(level) {
+    this.ghostLevel = level > 0 ? level : 0;
+    this.writeSelection();
   }
 
   // Hiding is per part and survives switching systems on and off, which is
@@ -489,6 +558,7 @@ export class Viewer {
       sub: this.sub,
       side: this.side,
       peel: this.peel,
+      ghostLevel: this.ghostLevel,
     };
   }
 
@@ -501,6 +571,7 @@ export class Viewer {
     this.isolated = s.isolated;
     this.uniforms.uSelected.value = s.selected;
     this.peel = s.peel ?? 0;
+    this.ghostLevel = s.ghostLevel ?? 0;
     this.setFilter({ region: s.region, sub: s.sub ?? null, side: s.side ?? null });
     this.writeSelection();
     this.applyVisibility();
@@ -639,7 +710,9 @@ export class Viewer {
     }
     const wanted = new Set(systems);
     const savedVis = this.partData.slice();
+    const savedState = this.stateData.slice();
     const savedMesh = new Map([...this.meshes].map(([id, m]) => [id, m.visible]));
+    const savedGhost = new Map([...this.ghostMeshes].map(([id, m]) => [id, m.visible]));
     const savedClip = {
       on: this.uniforms.uClipOn.value,
       min: this.uniforms.uClipMin.value.clone(),
@@ -655,7 +728,15 @@ export class Viewer {
     }
     this.partTex.needsUpdate = true;
     this.uniforms.uPartTex.value = this.partTex;
+    // A card is a plate, not a state of the app: no selection tint, nothing
+    // faded, the skin excepted since that is what it is.
+    for (const p of this.parts) {
+      this.stateData[p.i * 4] = 0;
+      this.stateData[p.i * 4 + 1] = 1;
+    }
+    this.stateTex.needsUpdate = true;
     for (const [id, mesh] of this.meshes) mesh.visible = wanted.has(id);
+    for (const mesh of this.ghostMeshes.values()) mesh.visible = false;
     if (this.stage) this.stage.visible = false;
     if (box) this.setClip(box);
 
@@ -699,8 +780,11 @@ export class Viewer {
 
     // Restore everything.
     this.partData.set(savedVis);
+    this.stateData.set(savedState);
     this.partTex.needsUpdate = true;
+    this.stateTex.needsUpdate = true;
     for (const [id, mesh] of this.meshes) mesh.visible = savedMesh.get(id) !== false;
+    for (const [id, mesh] of this.ghostMeshes) mesh.visible = savedGhost.get(id) !== false;
     if (this.stage) this.stage.visible = stageWasVisible;
     this.uniforms.uClipOn.value = savedClip.on;
     this.uniforms.uClipMin.value.copy(savedClip.min);
@@ -895,6 +979,10 @@ export class Viewer {
     this.camera.setViewOffset(w, h, px, h - py - 1, 1, 1);
     const stageWasVisible = this.stage ? this.stage.visible : false;
     if (this.stage) this.stage.visible = false;
+    // Both passes share the geometry, so the ghost mesh would only draw the
+    // same ids twice.
+    const ghostWasVisible = new Map([...this.ghostMeshes].map(([id, m]) => [id, m.visible]));
+    for (const mesh of this.ghostMeshes.values()) mesh.visible = false;
     this.scene.overrideMaterial = this.pickMaterial;
     this.renderer.setRenderTarget(this.pickTarget);
     this.renderer.setViewport(0, 0, 1 / dpr, 1 / dpr);
@@ -904,6 +992,7 @@ export class Viewer {
     this.renderer.setRenderTarget(null);
     this.scene.overrideMaterial = null;
     if (this.stage) this.stage.visible = stageWasVisible;
+    for (const [id, mesh] of this.ghostMeshes) mesh.visible = ghostWasVisible.get(id) !== false;
     this.camera.clearViewOffset();
     if (this.split) this.usePane('A');
     const id = this.pickPixel[0] + this.pickPixel[1] * 256 - 1;

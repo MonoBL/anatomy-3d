@@ -230,7 +230,7 @@ function buildSystemList() {
 }
 
 // ------------------------------------------------------------- contents
-const THUMB_VERSION = 'v3';
+const THUMB_VERSION = 'v4';
 function openContents(on = true) {
   $('#contents').hidden = !on;
   if (!on) return;
@@ -448,6 +448,19 @@ function setPeel(n) {
   }
 }
 
+// Transparency steps rather than toggles: a light fade to read a structure in
+// place, a heavy one to see through the whole body, then off.
+// The deep step stays above the pick threshold: a faded structure still has
+// to be tappable, or the tool would fight the study it is meant to help.
+const GHOST_STEPS = [0, 0.34, 0.18];
+
+function stepTransparency() {
+  const viewer = state.viewer;
+  const i = GHOST_STEPS.indexOf(viewer.ghostLevel);
+  viewer.setTransparency(GHOST_STEPS[(i + 1) % GHOST_STEPS.length]);
+  syncToolbar();
+}
+
 function setMultiselect(on) {
   state.multiselect = on;
   syncToolbar();
@@ -461,6 +474,7 @@ function resetAll() {
   selectPart(-1);          // closes the detail panel too
   viewer.showAllParts();
   viewer.setPeel(0);
+  viewer.setTransparency(0);
   viewer.setIsolated(false);
   setCompare(false);
   setMultiselect(false);
@@ -517,6 +531,7 @@ function syncToolbar() {
   set('center', { disabled: !has });
   set('isolate', { on: viewer.isolated, disabled: !has });
   set('multi', { on: state.multiselect });
+  set('ghost', { on: viewer.ghostLevel > 0 });
   set('hide', { disabled: !has });
   set('undo', { disabled: !state.undo.length });
   set('explode', { on: !$('#explodePanel').hidden });
@@ -534,6 +549,7 @@ function bindToolbar() {
   const actions = {
     center: () => viewer.focusSelection(),
     isolate: toggleIsolate,
+    ghost: stepTransparency,
     multi: () => setMultiselect(!state.multiselect),
     hide: hideSelection,
     undo,
@@ -1051,6 +1067,7 @@ function bindUI() {
     else if (e.key === 'z' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); undo(); }
     else if (e.key === 'h' && viewer.selection.size) hideSelection();
     else if (e.key === 'm') setMultiselect(!state.multiselect);
+    else if (e.key === 't') { pushUndo(); stepTransparency(); }
     else if (e.key === ']') { pushUndo(); setPeel(viewer.peel + 1); }
     else if (e.key === '[') { pushUndo(); setPeel(viewer.peel - 1); }
     else if (e.key === 'i' && viewer.selected >= 0) $('#isolateBtn').click();

@@ -126,9 +126,15 @@ cards mostly empty — they frame the visible content instead.
 
 ## 3. Renderer work
 
-- **Transparency.** Add a per-part alpha channel to the part texture. Transparent parts draw
-  in a second pass with `depthWrite: false`, sorted back-to-front by system; the picking pass
-  ignores parts below an alpha threshold so you can tap through a ghosted skin.
+- **Transparency.** Done. Per-part alpha lives in the state texture. Every system now has a
+  second mesh over the same geometry: the solid pass discards fragments with alpha below 1 and
+  writes depth, the ghost pass discards the solid ones and blends without writing depth, so a
+  selected structure stays solid inside a faded body. One mesh could not do both — a single
+  material cannot write depth for some of its fragments and not others. The button steps
+  off → 34% → 18%: with something selected everything else fades, with nothing selected the
+  whole body does. The picking pass ignores anything below 15% alpha, which is how a tap goes
+  through the body surface (permanently at 10%) to the muscle underneath. The side effect is
+  that the skin itself can only be selected from the search, not by tapping it.
 - **Region clip.** Reuse `setClip`, driven by the active region box; allow the anatomical cut
   box to intersect it rather than replace it.
 - **Selection set.** `selected: number` -> `Set<number>`, with a `selectionTex` lookup
@@ -188,7 +194,7 @@ cards mostly empty — they frame the visible content instead.
 | 3 | Layers | 2.2 + layer stepper | **done** — peel by occlusion; fade still to do |
 | 4 | Presets | 2.4 + contents screen + thumbnails | **done** — cards per region, thumbnails cached in IndexedDB |
 | 5 | Views | 2.3 + views sheet + joint shortcuts | **done** — 6 directions, LAT/MED by side, 25 joint landmarks |
-| 6 | Transparency | second pass + pick-through | ghosted bones with muscles visible |
+| 6 | Transparency | second pass + pick-through | **done** — three steps, selection stays solid |
 | 7 | Pins & bookmarks | labels, leader lines, saved states | a labelled screenshot for revision |
 | 8 | Polish & deploy | hide interface, PT audit, Vercel | usable for a whole study session, on a URL |
 
