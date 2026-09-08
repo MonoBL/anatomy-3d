@@ -711,3 +711,51 @@ button { cursor: pointer; border: 0; background: none; }
 }
 .leftrail::-webkit-scrollbar { width: 6px; }
 .leftrail::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+
+/* ------------------------------------------------------- hide interface
+   Everything except the body goes away, so a screenshot is the anatomy and
+   nothing else. One pill comes back to undo it. */
+.hidechrome {
+  margin-top: 3px; padding: 5px 4px; border-radius: 8px; background: var(--bg-2);
+  font-size: 8px; letter-spacing: .04em; text-transform: uppercase;
+  font-weight: 550; color: var(--ink-3); line-height: 1.2;
+}
+.hidechrome:hover { background: var(--accent); color: #fff; }
+#app.chrome-hidden > *:not(#stage):not(.vignette):not(#showChrome):not(#pinLayer):not(#tooltip) {
+  opacity: 0; pointer-events: none; transition: opacity .2s ease;
+}
+.showchrome {
+  position: absolute; bottom: calc(24px + var(--sab)); left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 15px;
+  border-radius: 999px; background: var(--card); backdrop-filter: blur(12px);
+  border: 1px solid var(--line); box-shadow: var(--shadow);
+  font-size: 11px; font-weight: 550; color: var(--ink-2); z-index: 20;
+}
+.showchrome:hover { color: var(--ink); }
+.showchrome .ico { width: 14px; height: 14px; }
+
+/* --------------------------------------------------------------- offline */
+.offline { padding: 12px; flex: 0 0 auto; }
+.offline-note { margin: 6px 0 10px; font-size: 10px; line-height: 1.45; color: var(--ink-3); }
+.secondary.wide { width: 100%; justify-content: center; }
+.offline .pill.is-ready { background: var(--accent); color: #fff; }
+
+/* ------------------------------------------------- rail scrolling on iPad
+   Two fixes for the same symptom (panels drawing over each other on an
+   iPad): the rail is the only scroll container now, instead of nesting the
+   systems list and the saved views inside it, and the panels in it do not use
+   backdrop-filter. A backdrop-filtered child escapes an ancestor's scroll
+   clip in iOS Safari, which is what let the system rows paint over the panel
+   below them. The cards are nearly opaque anyway. */
+.leftrail .panel {
+  backdrop-filter: none;
+  background: var(--card-solid);
+  overflow: hidden;
+}
+.syslist, .marklist {
+  max-height: none;
+  overflow: visible;
+}
+@media (max-width: 820px) {
+  .syslist { max-height: none; }
+}

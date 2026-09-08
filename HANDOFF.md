@@ -1,6 +1,6 @@
 # Handoff — Human Atlas
 
-State of the project as of 2026-09-08. Written so the next session can pick up without
+State of the project as of 2026-09-08 (second pass: regions, layers, contents, tools). Written so the next session can pick up without
 re-deriving anything. Repo: <https://github.com/MonoBL/anatomy-3d> (public, CC BY-SA 2.1 JP).
 
 ## What it is
@@ -35,13 +35,23 @@ viewer without touching the pipeline.
 | `tools/lib-bp3d.mjs` | FMA graph loading (is-a and part-of), ancestors, element maps |
 | `tools/obj.mjs` | OBJ parser — **keeps the authored `vn` normals** |
 | `tools/systems.mjs` | the 15 systems: ids, labels EN/PT, colours, groups, overviews |
+| `tools/regions.mjs` | the 4 regions and 12 sub-regions: bone rules, nearest-bone voting, sides, boxes |
+| `tools/layers.mjs` | muscular layers by occlusion (rays + iterative peel), cached samples |
+| `tools/landmarks.mjs` | joint landmarks from the closest pair of vertices between two bones |
+| `tools/make-icons.mjs` | generates the PWA icons (no image dependency) |
+| `tools/check-i18n.mjs` | checks the UI strings (`npm run check:i18n`) |
+| `tools/report-regions.mjs` | region/sub-region report (`npm run report:regions [name]`) |
 | `tools/system-map.json` | element id -> system, taken from the reference (MIT) |
 | `tools/describe.mjs` | assembles per-structure names and paragraphs from the caches |
 | `tools/build-atlas.mjs` | the pipeline: decimate, transform, pack `public/atlas/` |
 | `tools/verify.mjs` | sanity-checks every packed binary (`npm run verify:atlas`) |
 | `src/atlas.js` | fetch + gunzip + parse the binary format |
 | `src/viewer.js` | three.js scene, materials, picking, cuts, split view, camera |
-| `src/main.js` | all UI wiring, state, search, panels |
+| `src/main.js` | all UI wiring, state, search, panels, toolbar, contents, pins |
+| `src/presets.js` | the contents cards: which systems each plate turns on |
+| `src/thumbs.js` | thumbnail cache (IndexedDB) |
+| `src/bookmarks.js` | saved views (localStorage) |
+| `src/offline.js` | service-worker registration and the offline atlas download |
 | `src/i18n.js` | UI strings EN / PT-PT, language persistence |
 
 ## Data pipeline, as it stands
@@ -95,6 +105,27 @@ from the preserved normals — there is no procedural fibre shading any more.
 Result: the whole body in **~15 draw calls at 60 fps**. Picking renders a 1×1 pixel id-buffer
 under the cursor with an override material (the stage is hidden for that pass).
 
+## The study tools (second pass, modelled on Anatomy 3D Atlas)
+
+- **Contents screen** — region tabs, then plate cards per system group ("Muscles and bones",
+  "Bones", "Arteries", "Nerves and muscles", organs, surface). Cards are data in
+  `src/presets.js`; a region only gets a card when it holds at least three parts of that
+  system. Thumbnails are rendered by the viewer into a render target, lazily, and cached in
+  IndexedDB under a renderer version plus the atlas build.
+- **Regions and sub-regions** — 4 regions, 12 sub-regions, plus a side switch. Entering a limb
+  picks a side, so the view is a plate of one arm or one leg. Membership uses per-region and
+  per-sub-region shares, and the view is trimmed to that area's bone box.
+- **Muscular layers** — ten per region, peeled superficial-first with a fade.
+- **Toolbar** — layer stepper, views, pins, transparency, centre, isolate, multiselect, hide,
+  undo (30 steps), explode, reset, hide interface.
+- **Views sheet** — ANT/POS/LAT/MED/SUP/INF, LAT and MED resolved against the active side,
+  plus the joints of the region on screen.
+- **Transparency** — three steps; with something selected the rest fades, otherwise the whole
+  body does. A tap goes through anything under 15% alpha.
+- **Pins and saved views** — labels that follow the model, and named states that restore
+  region, systems, layers, cuts, selection, pins and camera.
+- **Offline** — the service worker keeps the shell, and one button stores the whole atlas.
+
 ## Ours, on top of the reference
 
 - **European Portuguese** everywhere: UI, system names and overviews, structure paragraphs,
@@ -130,11 +161,30 @@ Do not re-learn these:
 - Wikipedia's anonymous API rate-limits hard: batch 20 titles, GET, ~1 req/s, back off on 429.
 - Tabs are presets that *set* visibility, not filters, and they never switch the body surface
   back on because it would hide everything behind it.
+- **A `WebGLRenderTarget` holds linear colour** unless its texture is marked
+  `SRGBColorSpace`. Reading pixels back without that gives lurid thumbnails.
+- **BP3D's +x is the body's own left**, so a camera at +x shows the left side. The first view
+  table had the two lateral directions the wrong way round.
+- **`backdrop-filter` on a child escapes an ancestor's scroll clip in iOS Safari.** That is
+  what made the rail's panels paint over each other on the iPad; the rail's panels are solid
+  now, and it is the only scroll container.
+- **One material cannot write depth for some fragments and not others**, which is why
+  transparency needs a second mesh per system rather than a flag.
+- **`meshoptimizer` samples per vertex, but anatomy is per area.** Vertex-stride sampling let
+  the finely tessellated tendon at the wrist speak for a whole muscle; the layer pass samples
+  by triangle area instead.
+- **Structures must be large to belong to two regions.** In the anatomical position the hands
+  hang beside the hips, so nearest-bone voting put small pelvic structures in the arm.
 
 ## Known gaps / candidates for next
 
-- **Not deployed.** `npm run build` produces a static `dist/`; Vercel already offered to
-  import the repo (it watches the GitHub account, nothing was connected).
+- **Not deployed.** `npm run build` produces a static `dist/`; the PWA plumbing (manifest,
+  icons, service worker, Vercel cache headers) is in place and waiting for the deploy.
+- **No peripheral nerves in the source.** All 139 BodyParts3D nervous meshes are cranial, so
+  the limbs have no nerve plates. Veins are almost all trunk. Dataset, not pipeline.
+- Sub-region cards (a "Hand · bones" plate) are not in the contents yet; the data is there.
+- The deepest layer of a region is a bucket: muscles walled in by bone are ranked by how much
+  covers them rather than peeled in turn.
 - Muscle fibres do not fan. Our per-part direction is a single PCA axis; the commercial
   Anatomy 3D Atlas app fans them via real UV textures, which BodyParts3D does not ship.
 - 1,444 structures have no verified Portuguese name and fall back to English, flagged in the

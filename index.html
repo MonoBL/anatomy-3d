@@ -108,6 +108,16 @@
       <div class="marklist" id="markList"></div>
     </section>
 
+    <!-- offline -->
+    <section class="panel offline" id="offlinePanel" hidden>
+      <div class="panel-head">
+        <span data-i18n="offline.title">Offline</span>
+        <span class="pill" id="offlineState">—</span>
+      </div>
+      <p class="offline-note" data-i18n="offline.note">Store the whole atlas on this device so it works without a connection.</p>
+      <button class="secondary wide" id="offlineBtn"><span data-i18n="offline.save">Save for offline use</span></button>
+    </section>
+
     <!-- anatomical cuts -->
     <section class="panel cuts" id="cutPanel">
       <div class="panel-head">
@@ -176,6 +186,7 @@
         <button data-layer="down" data-i18n-title="tool.layerDown">
           <svg viewBox="0 0 20 12" class="tico"><path d="M3 3.5 10 9l7-5.5"/></svg>
         </button>
+        <button class="hidechrome" id="hideChrome" data-i18n="tool.hideUi">Hide interface</button>
       </div>
       <button data-tool="views" data-i18n-title="tool.views">
         <svg viewBox="0 0 20 20" class="tico"><path d="M1.8 10S5 4.8 10 4.8 18.2 10 18.2 10 15 15.2 10 15.2 1.8 10 1.8 10Z"/><circle cx="10" cy="10" r="2.3"/></svg>
@@ -242,6 +253,11 @@
       <button class="secondary" id="compareBtn" hidden><span class="isoIco">⇄</span> <span id="compareBtnLabel" data-i18n="detail.compare">Compare with the other side</span></button>
       <button class="linkbtn wide" id="clearSel" data-i18n="detail.clear">Clear selection</button>
     </aside>
+
+    <button class="showchrome" id="showChrome" hidden>
+      <svg viewBox="0 0 16 16" class="ico"><path d="M2.5 5h11M2.5 8h11M2.5 11h11"/></svg>
+      <span data-i18n="tool.showUi">Show interface</span>
+    </button>
 
     <button class="resetpill" id="resetView" hidden>
       <svg viewBox="0 0 16 16" class="ico"><path d="M3 8a5 5 0 1 0 1.6-3.7"/><path d="M3 2.2V5h2.8"/></svg>

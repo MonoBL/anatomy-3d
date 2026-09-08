@@ -375,14 +375,56 @@ export class Viewer {
   // Layers are ranked per region, so peeling the whole body takes the
   // superficial layer off every region at once.
   peeled(p) {
+    if (this.peelVisible?.has(p.i)) return false;   // still fading out
     return this.peel > 0 && p.ly !== undefined && p.ly < this.peel;
   }
 
-  setPeel(n) {
+  // Peeling a layer fades it out rather than popping it, which is the
+  // difference between "where did that go" and watching it lift off.
+  setPeel(n, { animate = false } = {}) {
     const max = this.maxPeel();
-    this.peel = Math.max(0, Math.min(max, n));
+    const next = Math.max(0, Math.min(max, n));
+    const from = this.peel;
+    this.peel = next;
+    if (animate && next !== from) {
+      const lo = Math.min(from, next), hi = Math.max(from, next);
+      const ids = [];
+      for (const p of this.parts) {
+        if (p.ly === undefined || p.ly < lo || p.ly >= hi) continue;
+        if (!this.inRegion(p) || this.hiddenParts.has(p.i)) continue;
+        ids.push(p.i);
+      }
+      // Going deeper fades the leaving layers out; coming back fades them in.
+      this.peelFade = ids.length ? { ids, t: 0, out: next > from } : null;
+      if (this.peelFade && this.peelFade.out) {
+        // Keep them on screen for the length of the fade.
+        this.peelVisible = new Set(ids);
+      } else {
+        this.peelVisible = null;
+      }
+    } else {
+      this.peelFade = null;
+      this.peelVisible = null;
+    }
     this.applyVisibility();
     return this.peel;
+  }
+
+  // Advances a peel fade; called from render with the frame's delta.
+  stepPeelFade(dt) {
+    const fade = this.peelFade;
+    if (!fade) return;
+    fade.t = Math.min(1, fade.t + dt / 0.24);
+    const k = fade.out ? 1 - fade.t : fade.t;
+    for (const id of fade.ids) this.stateData[id * 4 + 1] = Math.max(0.001, k);
+    this.stateTex.needsUpdate = true;
+    this.applyGhostPass();
+    if (fade.t < 1) return;
+    this.peelFade = null;
+    this.peelVisible = null;
+    // Hand the alphas back to the normal rules.
+    this.writeSelection();
+    this.applyVisibility();
   }
 
   // One less than the layer count: peeling everything away would leave the
@@ -508,7 +550,7 @@ export class Viewer {
   applyGhostPass() {
     for (const [id, mesh] of this.ghostMeshes) {
       const solid = this.meshes.get(id);
-      const needed = this.ghostLevel > 0 || id === 'integumentary';
+      const needed = this.ghostLevel > 0 || !!this.peelFade || id === 'integumentary';
       mesh.visible = needed && !!solid?.visible;
     }
   }
@@ -1064,6 +1106,7 @@ export class Viewer {
     }
     this.controls.update();
     this.clampTarget();
+    this.stepPeelFade(dt);
 
     // Viewport and scissor take logical pixels: the renderer scales them by the
     // pixel ratio itself, so passing device pixels doubles them on retina.

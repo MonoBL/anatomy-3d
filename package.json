@@ -13,7 +13,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "report:regions": "node tools/report-regions.mjs"
+    "report:regions": "node tools/report-regions.mjs",
+    "check:i18n": "node tools/check-i18n.mjs"
   },
   "dependencies": {
     "meshoptimizer": "^0.24.0",

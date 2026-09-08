@@ -1,7 +1,7 @@
 import { loadIndex, loadSystem, loadText } from './atlas.js';
 import { Viewer, ANATOMICAL_COLORS } from './viewer.js';
 import { makeT, applyStatic, initialLang, rememberLang, numberFormat, LANGS } from './i18n.js';
-import { registerServiceWorker } from './offline.js';
+import { registerServiceWorker, cacheAtlasOffline, offlineReady } from './offline.js';
 import { PRESETS, PRESET_GROUPS, presetsFor, presetSize } from './presets.js';
 import { getThumb, putThumb, pruneThumbs } from './thumbs.js';
 import { loadBookmarks, addBookmark, removeBookmark } from './bookmarks.js';
@@ -89,6 +89,7 @@ async function init() {
   // yet; now that everything is in, draw them.
   if (!$('#contents').hidden) buildContents();
   pruneThumbs(`${THUMB_VERSION}|${state.index.generated}`);
+  initOffline();
   // First visit opens on the contents, as the reference app does; after that
   // the atlas opens where it is quicker to work.
   try {
@@ -628,9 +629,9 @@ function hideSelection() {
 
 // The layer stepper. Peeling is undoable in one step per press, which is what
 // makes it safe to explore with.
-function setPeel(n) {
+function setPeel(n, { animate = true } = {}) {
   const before = state.viewer.peel;
-  const after = state.viewer.setPeel(n);
+  const after = state.viewer.setPeel(n, { animate });
   if (after !== before) {
     updateVisibleCount();
     syncToolbar();
@@ -677,6 +678,7 @@ function resetAll() {
   for (const st of state.cuts.values()) { st.on = false; st.flip = false; st.at = 0.5; }
   toggleExplodePanel(false);
   toggleViewSheet(false);
+  setChrome(true);
   $('#explode').value = 0;
   viewer.setSpread(0);
   applyTab('all');
@@ -687,6 +689,42 @@ function resetAll() {
   viewer.resetCamera();
   updateVisibleCount();
   syncToolbar();
+}
+
+// --------------------------------------------------------- hide interface
+function setChrome(on) {
+  $('#app').classList.toggle('chrome-hidden', !on);
+  $('#showChrome').hidden = on;
+}
+
+// ---------------------------------------------------------------- offline
+async function initOffline() {
+  const panel = $('#offlinePanel');
+  if (!('serviceWorker' in navigator) || !import.meta.env.PROD) return;
+  panel.hidden = false;
+  const state$ = $('#offlineState');
+  const btn = $('#offlineBtn');
+  const ready = await offlineReady(state.index).catch(() => false);
+  const markReady = () => {
+    state$.textContent = state.t('offline.ready');
+    state$.classList.add('is-ready');
+    btn.disabled = true;
+  };
+  if (ready) markReady();
+  else state$.textContent = `${(state.index.systems.reduce((a, s) => a + s.bytes, 0) / 1e6).toFixed(0)} MB`;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      await cacheAtlasOffline(state.index, (done, total) => {
+        state$.textContent = `${state.t('offline.saving')} ${done}/${total}`;
+      });
+      markReady();
+    } catch (err) {
+      console.warn(err);
+      state$.textContent = state.t('offline.failed');
+      btn.disabled = false;
+    }
+  });
 }
 
 function setRail(open) {
@@ -847,7 +885,7 @@ function applyFilter({ frame = false } = {}) {
   document.querySelectorAll('#regionBar button').forEach(b =>
     b.classList.toggle('is-active', (b.dataset.region || null) === state.region));
   buildSubBar();
-  viewer.setPeel(viewer.peel);           // each region has its own depth
+  viewer.setPeel(viewer.peel, { animate: false });   // each region has its own depth
   applyCuts();
   if (frame) {
     const box = filterBox();
@@ -1123,6 +1161,8 @@ function bindUI() {
   document.querySelectorAll('#viewSheet [data-dir]').forEach(b =>
     b.addEventListener('click', () => goToDir(b.dataset.dir)));
   $('#markAdd').addEventListener('click', saveBookmark);
+  $('#hideChrome').addEventListener('click', () => setChrome(false));
+  $('#showChrome').addEventListener('click', () => setChrome(true));
   $('#contentsBtn').addEventListener('click', () => openContents(true));
   $('#contentsClose').addEventListener('click', () => openContents(false));
   $('#cutClear').addEventListener('click', clearCuts);
@@ -1275,6 +1315,7 @@ function bindUI() {
     else if (e.key === 'h' && viewer.selection.size) hideSelection();
     else if (e.key === 'm') setMultiselect(!state.multiselect);
     else if (e.key === 't') { pushUndo(); stepTransparency(); }
+    else if (e.key === '.') setChrome($('#app').classList.contains('chrome-hidden'));
     else if (e.key === ']') { pushUndo(); setPeel(viewer.peel + 1); }
     else if (e.key === '[') { pushUndo(); setPeel(viewer.peel - 1); }
     else if (e.key === 'i' && viewer.selected >= 0) $('#isolateBtn').click();

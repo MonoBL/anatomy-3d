@@ -202,7 +202,7 @@ cards mostly empty — they frame the visible content instead.
 | 5 | Views | 2.3 + views sheet + joint shortcuts | **done** — 6 directions, LAT/MED by side, 25 joint landmarks |
 | 6 | Transparency | second pass + pick-through | **done** — three steps, selection stays solid |
 | 7 | Pins & bookmarks | labels, leader lines, saved states | **done** — pins follow the model, saved views restore everything |
-| 8 | Polish & deploy | hide interface, PT audit, Vercel | usable for a whole study session, on a URL |
+| 8 | Polish & deploy | hide interface, layer fade, PT audit, offline | **done bar the deploy** |
 
 Phases 1 and 3 are the data-heavy ones and carry the risk; 2, 4-8 are mostly UI.
 
