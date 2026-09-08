@@ -523,6 +523,9 @@ function applyBookmark(b) {
 // ----------------------------------------------------------------- views
 function toggleViewSheet(on = $('#viewSheet').hidden) {
   $('#viewSheet').hidden = !on;
+  // Below a wide desktop the sheet and the rail would sit on top of each
+  // other, so only one of them is open at a time.
+  if (on && state.rail && innerWidth < 1280) setRail(false);
   document.querySelector('.toolbar button[data-tool="views"]')?.classList.toggle('is-active', on);
   if (on) buildJointChips();
 }

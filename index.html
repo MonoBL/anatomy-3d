@@ -129,18 +129,13 @@
     </div>
 
     <!-- explode -->
-    <section class="panel explode" id="explodePanel" hidden>
-      <div class="explode-head">
-        <span data-i18n="explode.title">Explode anatomy</span>
-        <span class="pill" id="explodeVal">0 %</span>
-      </div>
-      <div class="explode-row">
-        <input id="explode" class="slider" type="range" min="0" max="100" value="0" step="0.5" />
-        <button class="iconbtn reset" id="resetExplode" data-i18n-title="explode.reset">
-          <svg viewBox="0 0 16 16" class="ico"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13 2.2V5h-2.8"/></svg>
-        </button>
-      </div>
-      <div class="explode-foot"><span data-i18n="explode.assembled">Assembled</span><span data-i18n="explode.every">Every piece</span></div>
+    <section class="panel explode" id="explodePanel" data-i18n-title="explode.title" hidden>
+      <span class="pill" id="explodeVal">0 %</span>
+      <input id="explode" class="slider vslider" type="range" min="0" max="100" value="0" step="0.5"
+             orient="vertical" data-i18n-label="explode.title" />
+      <button class="iconbtn reset" id="resetExplode" data-i18n-title="explode.reset">
+        <svg viewBox="0 0 16 16" class="ico"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13 2.2V5h-2.8"/></svg>
+      </button>
     </section>
 
     <!-- view toolbar -->
