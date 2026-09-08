@@ -2,7 +2,7 @@ import { loadIndex, loadSystem, loadText } from './atlas.js';
 import { Viewer, ANATOMICAL_COLORS } from './viewer.js';
 import { makeT, applyStatic, initialLang, rememberLang, numberFormat, LANGS } from './i18n.js';
 import { registerServiceWorker, cacheAtlasOffline, offlineReady } from './offline.js';
-import { PRESETS, PRESET_GROUPS, presetsFor, presetSize } from './presets.js';
+import { PRESETS, PRESET_GROUPS, presetsFor, presetSize, subregionCardsFor } from './presets.js';
 import { getThumb, putThumb, pruneThumbs } from './thumbs.js';
 import { loadBookmarks, addBookmark, removeBookmark } from './bookmarks.js';
 
@@ -295,9 +295,23 @@ function buildContents() {
     </div></div>`;
   }).join('');
 
+  // One level down: the hand on its own, the pelvis on its own.
+  const finer = subregionCardsFor(state.index, region);
+  if (finer.length) {
+    body.insertAdjacentHTML('beforeend', `<div class="contents-group">
+      <h3>${state.t('contents.finer')}</h3><div class="cardgrid">
+      ${finer.map(({ preset, sub, count }) => `
+        <button class="card" data-preset="${preset.id}" data-sub="${sub.id}">
+          <span class="thumb is-empty" data-thumb="${preset.id}" data-thumb-sub="${sub.id}">${state.t('contents.rendering')}</span>
+          <span class="cap"><b>${name(sub)} · ${name(preset).toLowerCase()}</b>
+            <span>${state.nf.format(count)} ${state.t('contents.parts')}</span></span>
+        </button>`).join('')}
+      </div></div>`);
+  }
+
   body.querySelectorAll('.card').forEach(card => card.addEventListener('click', () => {
     const preset = PRESETS.find(p => p.id === card.dataset.preset);
-    if (preset) applyPreset(preset, region);
+    if (preset) applyPreset(preset, region, card.dataset.sub || null);
   }));
   queueThumbs(region);
 }
@@ -321,18 +335,19 @@ function queueThumbs(region) {
 async function showThumb(el, region) {
   const preset = PRESETS.find(p => p.id === el.dataset.thumb);
   if (!preset || !state.loaded.size) return;
+  const sub = el.dataset.thumbSub || null;
   const side = defaultSide(region, state.side) ?? 'both';
   // The key carries a renderer version as well as the atlas build: a change to
   // how thumbnails are drawn has to invalidate the ones already stored.
-  const key = `${THUMB_VERSION}|${state.index.generated}|${region ?? 'all'}|${side}|${preset.id}`;
+  const key = `${THUMB_VERSION}|${state.index.generated}|${region ?? 'all'}|${sub ?? '-'}|${side}|${preset.id}`;
   let blob = await getThumb(key);
   if (!blob) {
     // The viewer needs the systems loaded before it can draw them.
     if (!preset.systems.every(id => state.loaded.has(id))) return;
     const cardSide = defaultSide(region, state.side);
-    const box = boxFor(region, null, cardSide);
+    const box = boxFor(region, sub, cardSide);
     const canvas = state.viewer.renderThumbnail({
-      systems: preset.systems, box, filter: { region, side: cardSide },
+      systems: preset.systems, box, filter: { region, sub, side: cardSide },
     });
     if (!canvas) return;
     blob = await new Promise(res => canvas.toBlob(res, 'image/webp', 0.9));
@@ -347,11 +362,11 @@ async function showThumb(el, region) {
   el.replaceWith(img);
 }
 
-function applyPreset(preset, region) {
+function applyPreset(preset, region, sub = null) {
   pushUndo();
   state.preset = preset.id;
   state.region = region;
-  state.sub = null;
+  state.sub = sub;
   state.side = defaultSide(region, state.side);
   const wanted = new Set(preset.systems);
   for (const s of state.index.systems) setSystem(s.id, wanted.has(s.id));

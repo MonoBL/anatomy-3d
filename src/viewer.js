@@ -102,6 +102,12 @@ const PART_FRAG_ALBEDO = /* glsl */`
 const OPAQUE_DISCARD = 'if (vAlpha < 0.999) discard;';
 const GHOST_DISCARD = 'if (vAlpha >= 0.999) discard;';
 
+// Interior faces darken towards a common tissue tone, so a cut through muscle
+// and bone at once reads as one cut rather than two lit surfaces.
+const CUT_FACE_ALBEDO = /* glsl */`
+  if (!gl_FrontFacing) diffuseColor.rgb = mix(diffuseColor.rgb * 0.86, vec3(0.44, 0.33, 0.30), 0.22);
+`;
+
 const PICK_VERT = PART_VERT_PRELUDE + /* glsl */`
 void main() {
   gl_Position = projectionMatrix * viewMatrix * vec4(partPosition(), 1.0);
@@ -319,7 +325,20 @@ export class Viewer {
         ${ghost ? GHOST_DISCARD : OPAQUE_DISCARD}`);
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <color_fragment>',
-        `#include <color_fragment>\n${PART_FRAG_ALBEDO}${ghost ? '\n  diffuseColor.a *= vAlpha;' : ''}`);
+        `#include <color_fragment>\n${PART_FRAG_ALBEDO}${CUT_FACE_ALBEDO}${ghost ? '\n  diffuseColor.a *= vAlpha;' : ''}`);
+      // A cut exposes the inside of a shell. Lit like an outside surface it
+      // reads as hollow, so interior faces are shaded head-on and matte: flat
+      // mass, which is what a cut face looks like. Real stencil caps were
+      // measured out — six full-scene passes a frame over 2.4 M triangles is
+      // not something an iPad can spare.
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <normal_fragment_begin>',
+        `#include <normal_fragment_begin>
+        if (!gl_FrontFacing) {
+          normal = normalize(vViewPosition);
+          roughnessFactor = 0.95;
+          metalnessFactor = 0.0;
+        }`);
     };
     // Every system shares a program per pass; three keys on the material.
     material.customProgramCacheKey = () => (ghost ? 'atlas-ghost' : 'atlas-part');

@@ -115,13 +115,33 @@ export function presetsFor(index, regionId) {
     .filter(({ count }) => count >= MIN_PARTS);
 }
 
+// The plates worth offering one level down: a hand or a pelvis is a plate in
+// its own right, the rest of the systems are not.
+export const SUBREGION_PRESETS = ['musclesBones', 'bones'];
+
+export function subregionCardsFor(index, regionId) {
+  if (!regionId) return [];
+  const subs = index.subregions.filter(s => s.region === regionId);
+  const out = [];
+  for (const sub of subs) {
+    for (const id of SUBREGION_PRESETS) {
+      const preset = PRESETS.find(p => p.id === id);
+      if (!preset) continue;
+      const n = presetSize(index, regionId, preset, sub.id);
+      if (n >= MIN_PARTS) out.push({ preset, sub, count: n });
+    }
+  }
+  return out;
+}
+
 // How many parts a card will actually put on screen, for the card's caption.
-export function presetSize(index, regionId, preset) {
+export function presetSize(index, regionId, preset, subId = null) {
   const systems = new Set(preset.systems);
   let n = 0;
   for (const p of index.parts) {
     if (!systems.has(p.s)) continue;
     if (regionId && p.rg !== regionId && !p.rgw?.[regionId]) continue;
+    if (subId && p.sr !== subId && !p.srw?.[subId]) continue;
     n++;
   }
   return n;
