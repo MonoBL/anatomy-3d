@@ -429,6 +429,11 @@ export class Viewer {
     this.onResize();
   }
 
+  partVisible(id, pane = 'A') {
+    const data = pane === 'B' ? this.partDataB : this.partData;
+    return data[id * 4 + 3] > 0.5;
+  }
+
   visibleCount(pane = 'A') {
     const data = pane === 'B' ? this.partDataB : this.partData;
     let n = 0;
@@ -803,6 +808,39 @@ export class Viewer {
     }
     ctx.putImageData(img, 0, 0);
     return canvas;
+  }
+
+  // World point to CSS pixels in pane A, for the pin labels. `behind` is set
+  // when the point is off the back of the camera, where projection flips.
+  project(x, y, z, out = {}) {
+    const v = this._projectVec ?? (this._projectVec = new THREE.Vector3());
+    v.set(x, y, z).project(this.camera);
+    out.behind = v.z > 1;
+    const width = this.split ? this.width / 2 : this.width;
+    out.x = (v.x * 0.5 + 0.5) * width;
+    out.y = (-v.y * 0.5 + 0.5) * this.height;
+    out.onScreen = !out.behind && out.x > -40 && out.y > -40 && out.x < width + 40 && out.y < this.height + 40;
+    return out;
+  }
+
+  // Where a part currently is, which is not its centroid once it explodes.
+  partAnchor(p) {
+    return this.uniforms.uInventory.value > 0.01 ? p.g : p.c;
+  }
+
+  cameraState() {
+    return {
+      pos: this.camera.position.toArray().map(v => +v.toFixed(4)),
+      target: this.controls.target.toArray().map(v => +v.toFixed(4)),
+    };
+  }
+
+  setCameraState(state) {
+    if (!state?.pos || !state?.target) return;
+    this.tween = null;
+    this.camera.position.set(...state.pos);
+    this.controls.target.set(...state.target);
+    this.controls.update();
   }
 
   // A joint landmark: frame the bone ends around it, not the gap itself.

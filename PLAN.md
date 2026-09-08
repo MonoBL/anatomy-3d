@@ -143,9 +143,13 @@ cards mostly empty — they frame the visible content instead.
   `applyVisibility`.
 - **Layer peel.** Visibility filter `layer <= cap` for the active region, animated (fade the
   outgoing layer over ~200 ms rather than popping).
-- **Pins.** For each pinned part project its centroid, place an absolutely positioned label
-  with an SVG leader line, cull when the centroid is behind geometry (one extra id-buffer
-  read per pin per frame, batched into a single small render target).
+- **Pins.** Done. Each pinned part projects its anchor (its centroid, or its wall slot once
+  exploded) to screen pixels every frame; an SVG layer draws the dot and the leader line, and
+  an HTML label sits at the end of it, flipping to the other side near the screen edge. A pin
+  hides itself when its structure is off screen or not currently visible, and tapping one
+  selects the structure. Occlusion culling by id-buffer reads was left out: a read per pin per
+  frame is not worth it, and a label on a structure behind another still reads correctly with
+  its leader line.
 - **Thumbnails.** Render each preset offscreen once (256x256, framed on its region, plain
   background), cache as a blob in IndexedDB keyed by preset id + atlas version. No headless
   render dependency, no repo bloat.
@@ -195,7 +199,7 @@ cards mostly empty — they frame the visible content instead.
 | 4 | Presets | 2.4 + contents screen + thumbnails | **done** — cards per region, thumbnails cached in IndexedDB |
 | 5 | Views | 2.3 + views sheet + joint shortcuts | **done** — 6 directions, LAT/MED by side, 25 joint landmarks |
 | 6 | Transparency | second pass + pick-through | **done** — three steps, selection stays solid |
-| 7 | Pins & bookmarks | labels, leader lines, saved states | a labelled screenshot for revision |
+| 7 | Pins & bookmarks | labels, leader lines, saved states | **done** — pins follow the model, saved views restore everything |
 | 8 | Polish & deploy | hide interface, PT audit, Vercel | usable for a whole study session, on a URL |
 
 Phases 1 and 3 are the data-heavy ones and carry the risk; 2, 4-8 are mostly UI.

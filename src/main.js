@@ -4,6 +4,7 @@ import { makeT, applyStatic, initialLang, rememberLang, numberFormat, LANGS } fr
 import { registerServiceWorker } from './offline.js';
 import { PRESETS, PRESET_GROUPS, presetsFor, presetSize } from './presets.js';
 import { getThumb, putThumb, pruneThumbs } from './thumbs.js';
+import { loadBookmarks, addBookmark, removeBookmark } from './bookmarks.js';
 
 const $ = sel => document.querySelector(sel);
 const FMA_URL = id => `https://bioportal.bioontology.org/ontologies/FMA?p=classes&conceptid=http%3A%2F%2Fpurl.org%2Fsig%2Font%2Ffma%2F${id.toLowerCase()}`;
@@ -30,6 +31,7 @@ const state = {
   region: null, sub: null, side: null,
   multiselect: false, undo: [],
   contentsRegion: null, preset: null,
+  pins: [],
   // The rail starts out of the way on a tablet, open on a desktop.
   rail: matchMedia('(min-width: 1100px)').matches && !matchMedia('(hover: none)').matches,
   lang: initialLang(), t: null, nf: null, text: {},
@@ -71,6 +73,7 @@ async function init() {
   buildRegionBar();
   buildSubBar();
   buildCutRows();
+  buildMarkList();
   bindUI();
   bindToolbar();
   let rail = state.rail;
@@ -113,6 +116,8 @@ async function setLang(lang, { initial = false } = {}) {
   buildRegionBar();
   buildSubBar();
   buildCutRows();
+  buildMarkList();
+  renderPins();
   if (!$('#contents').hidden) buildContents();
   updateVisibleCount();
   if (state.viewer.selected >= 0) selectPart(state.viewer.selected);
@@ -333,6 +338,185 @@ function applyPreset(preset, region) {
   openContents(false);
 }
 
+// ------------------------------------------------------------------ pins
+// Labels that stay on a structure while the model turns. Pinning the current
+// selection is the point: it is how a screenshot becomes a revision sheet.
+function togglePins() {
+  const viewer = state.viewer;
+  const ids = [...viewer.selection];
+  if (!ids.length) {
+    if (state.pins.length) { state.pins = []; renderPins(); syncToolbar(); }
+    return;
+  }
+  const already = ids.every(id => state.pins.includes(id));
+  state.pins = already
+    ? state.pins.filter(id => !ids.includes(id))
+    : [...new Set([...state.pins, ...ids])];
+  renderPins();
+  syncToolbar();
+}
+
+function renderPins() {
+  const layer = $('#pinLayer');
+  layer.hidden = !state.pins.length;
+  const labels = $('#pinLabels');
+  labels.innerHTML = state.pins.map((id, i) => {
+    const p = state.viewer.byId.get(id);
+    if (!p) return '';
+    return `<div class="pin" data-pin="${id}" style="left:0;top:0">
+      <span class="pname">${partName(p)}</span>
+      <button class="pdrop" title="${state.t('tool.pinOff')}" aria-label="${state.t('tool.pinOff')}">×</button>
+    </div>`;
+  }).join('');
+  labels.querySelectorAll('.pin').forEach(el => {
+    const id = Number(el.dataset.pin);
+    el.addEventListener('click', e => {
+      if (e.target.closest('.pdrop')) {
+        state.pins = state.pins.filter(x => x !== id);
+        renderPins();
+        syncToolbar();
+        return;
+      }
+      selectPart(id, { focus: false });
+    });
+  });
+  $('#pinLines').innerHTML = state.pins.map(() =>
+    '<line x1="0" y1="0" x2="0" y2="0" /><circle cx="0" cy="0" r="2.5" />').join('');
+  positionPins();
+}
+
+// Called every frame the camera moves: labels are stacked in a column to the
+// right of the body so the leader lines stay readable.
+const pinPoint = {};
+function positionPins() {
+  if (!state.pins.length) return;
+  const viewer = state.viewer;
+  const labels = $('#pinLabels').children;
+  const lines = $('#pinLines').children;
+  const w = viewer.split ? viewer.width / 2 : viewer.width;
+  for (let i = 0; i < state.pins.length; i++) {
+    const el = labels[i];
+    const line = lines[i * 2];
+    const dot = lines[i * 2 + 1];
+    const p = viewer.byId.get(state.pins[i]);
+    if (!el || !p) continue;
+    viewer.project(...viewer.partAnchor(p), pinPoint);
+    const visible = pinPoint.onScreen && viewer.partVisible(p.i);
+    el.style.display = visible ? '' : 'none';
+    line.style.display = dot.style.display = visible ? '' : 'none';
+    if (!visible) continue;
+    // Labels to the right of the anchor, or to the left near the edge.
+    const flip = pinPoint.x > w - 240;
+    const lx = flip ? Math.max(12, pinPoint.x - 210) : Math.min(w - 12, pinPoint.x + 54);
+    const ly = pinPoint.y;
+    el.style.left = `${lx}px`;
+    el.style.top = `${ly}px`;
+    el.classList.toggle('is-selected', viewer.selection.has(p.i));
+    line.setAttribute('x1', pinPoint.x);
+    line.setAttribute('y1', pinPoint.y);
+    line.setAttribute('x2', flip ? lx + (el.offsetWidth || 0) : lx);
+    line.setAttribute('y2', ly);
+    dot.setAttribute('cx', pinPoint.x);
+    dot.setAttribute('cy', pinPoint.y);
+  }
+}
+
+// ------------------------------------------------------------ saved views
+function buildMarkList() {
+  const list = loadBookmarks();
+  const wrap = $('#markList');
+  if (!list.length) {
+    wrap.innerHTML = `<p class="marks-empty">${state.t('marks.empty')}</p>`;
+    return;
+  }
+  wrap.innerHTML = list.map(b => `
+    <div class="markrow" data-mark="${b.id}">
+      <button class="mname" title="${b.name}">${b.name}</button>
+      <span class="mmeta">${b.count ?? ''}</span>
+      <button class="mdel" title="${state.t('marks.delete')}">×</button>
+    </div>`).join('');
+  wrap.querySelectorAll('.markrow').forEach(row => {
+    const id = row.dataset.mark;
+    row.querySelector('.mname').addEventListener('click', () => applyBookmark(list.find(b => b.id === id)));
+    row.querySelector('.mdel').addEventListener('click', () => { removeBookmark(id); buildMarkList(); });
+  });
+}
+
+// The name writes itself from what is on screen: region, side, and either the
+// preset or the selected structure.
+function bookmarkName() {
+  const bits = [];
+  const region = state.index.regions.find(r => r.id === state.region);
+  const sub = state.index.subregions.find(s => s.id === state.sub);
+  const name = s => (state.lang === 'pt' && s.labelPt ? s.labelPt : s.label);
+  if (sub) bits.push(name(sub));
+  else if (region) bits.push(name(region));
+  else bits.push(state.t('region.all'));
+  if (state.side) bits.push(state.t(state.side === 'l' ? 'region.leftShort' : 'region.rightShort'));
+  const preset = PRESETS.find(p => p.id === state.preset);
+  const selected = state.viewer.selected >= 0 ? state.viewer.byId.get(state.viewer.selected) : null;
+  if (selected) bits.push(partName(selected));
+  else if (preset) bits.push(name(preset));
+  return bits.join(' · ');
+}
+
+function saveBookmark() {
+  const viewer = state.viewer;
+  const entry = {
+    name: bookmarkName(),
+    count: state.nf.format(viewer.visibleCount('A')),
+    region: state.region, sub: state.sub, side: state.side,
+    preset: state.preset,
+    systems: state.index.systems.filter(s => viewer.visibilityMap('A').get(s.id) !== false).map(s => s.id),
+    hidden: [...viewer.hiddenParts],
+    selection: [...viewer.selection],
+    pins: [...state.pins],
+    peel: viewer.peel,
+    ghost: viewer.ghostLevel,
+    spread: viewer.spread,
+    cuts: [...state.cuts].map(([id, c]) => [id, { ...c }]),
+    camera: viewer.cameraState(),
+  };
+  if (!addBookmark(entry)) {
+    $('#markList').innerHTML = `<p class="marks-empty">${state.t('marks.full')}</p>`;
+    return;
+  }
+  buildMarkList();
+}
+
+function applyBookmark(b) {
+  if (!b) return;
+  const viewer = state.viewer;
+  pushUndo();
+  state.region = b.region ?? null;
+  state.sub = b.sub ?? null;
+  state.side = b.side ?? null;
+  state.preset = b.preset ?? null;
+  const on = new Set(b.systems ?? []);
+  for (const s of state.index.systems) setSystem(s.id, on.has(s.id));
+  state.tab = null;
+  syncTabs();
+  viewer.hiddenParts = new Set(b.hidden ?? []);
+  viewer.selection = new Set(b.selection ?? []);
+  viewer.selected = b.selection?.length ? b.selection[b.selection.length - 1] : -1;
+  viewer.uniforms.uSelected.value = viewer.selected;
+  viewer.peel = b.peel ?? 0;
+  viewer.setTransparency(b.ghost ?? 0);
+  state.pins = (b.pins ?? []).filter(id => viewer.byId.has(id));
+  state.cuts = new Map((b.cuts ?? []).map(([id, c]) => [id, { ...c }]));
+  if (!state.cuts.size) state.cuts = new Map(CUTS.map(c => [c.id, { on: false, at: 0.5, flip: false }]));
+  $('#explode').value = (b.spread ?? 0) * 100;
+  viewer.setSpread(b.spread ?? 0);
+  toggleExplodePanel((b.spread ?? 0) > 0);
+  buildCutRows();
+  applyFilter();
+  selectPart(viewer.selected, { keepSelection: true });
+  renderPins();
+  // The camera goes last: applyFilter would otherwise reframe over it.
+  viewer.setCameraState(b.camera);
+  syncToolbar();
+}
+
 // ----------------------------------------------------------------- views
 function toggleViewSheet(on = $('#viewSheet').hidden) {
   $('#viewSheet').hidden = !on;
@@ -395,6 +579,7 @@ function pushUndo() {
     viewer: state.viewer.snapshot(),
     cuts: new Map([...state.cuts].map(([k, v]) => [k, { ...v }])),
     region: state.region, sub: state.sub, side: state.side,
+    pins: [...state.pins],
   });
   if (state.undo.length > UNDO_DEPTH) state.undo.shift();
   syncToolbar();
@@ -407,7 +592,9 @@ function undo() {
   state.region = s.region;
   state.sub = s.sub;
   state.side = s.side;
+  state.pins = s.pins ?? [];
   state.viewer.restore(s.viewer);
+  renderPins();
   buildCutRows();
   buildRegionBar();
   buildSubBar();
@@ -475,6 +662,8 @@ function resetAll() {
   viewer.showAllParts();
   viewer.setPeel(0);
   viewer.setTransparency(0);
+  state.pins = [];
+  renderPins();
   viewer.setIsolated(false);
   setCompare(false);
   setMultiselect(false);
@@ -532,6 +721,11 @@ function syncToolbar() {
   set('isolate', { on: viewer.isolated, disabled: !has });
   set('multi', { on: state.multiselect });
   set('ghost', { on: viewer.ghostLevel > 0 });
+  const pinnable = has || state.pins.length > 0;
+  set('pin', {
+    on: has && [...viewer.selection].every(id => state.pins.includes(id)),
+    disabled: !pinnable,
+  });
   set('hide', { disabled: !has });
   set('undo', { disabled: !state.undo.length });
   set('explode', { on: !$('#explodePanel').hidden });
@@ -550,6 +744,7 @@ function bindToolbar() {
     center: () => viewer.focusSelection(),
     isolate: toggleIsolate,
     ghost: stepTransparency,
+    pin: togglePins,
     multi: () => setMultiselect(!state.multiselect),
     hide: hideSelection,
     undo,
@@ -916,6 +1111,7 @@ function bindUI() {
   $('#railToggle').addEventListener('click', () => setRail(!state.rail));
   document.querySelectorAll('#viewSheet [data-dir]').forEach(b =>
     b.addEventListener('click', () => goToDir(b.dataset.dir)));
+  $('#markAdd').addEventListener('click', saveBookmark);
   $('#contentsBtn').addEventListener('click', () => openContents(true));
   $('#contentsClose').addEventListener('click', () => openContents(false));
   $('#cutClear').addEventListener('click', clearCuts);
@@ -1152,6 +1348,7 @@ function tick() {
   requestAnimationFrame(tick);
   if (state.hoverTask && (frame++ & 1) === 0) state.hoverTask();
   state.viewer.render();
+  if (state.pins.length) positionPins();
   // Offer a way back whenever the view has drifted off the body.
   if ((frame & 15) === 0 && state.loaded.size) {
     const drifted = !state.viewer.tween && state.viewer.needsReset();

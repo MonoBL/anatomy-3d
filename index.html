@@ -99,6 +99,15 @@
       </div>
     </section>
 
+    <!-- saved views -->
+    <section class="panel marks" id="marksPanel">
+      <div class="panel-head">
+        <span data-i18n="marks.title">Saved views</span>
+        <button class="linkbtn" id="markAdd" data-i18n="marks.add">Save this view</button>
+      </div>
+      <div class="marklist" id="markList"></div>
+    </section>
+
     <!-- anatomical cuts -->
     <section class="panel cuts" id="cutPanel">
       <div class="panel-head">
@@ -172,6 +181,10 @@
         <svg viewBox="0 0 20 20" class="tico"><path d="M1.8 10S5 4.8 10 4.8 18.2 10 18.2 10 15 15.2 10 15.2 1.8 10 1.8 10Z"/><circle cx="10" cy="10" r="2.3"/></svg>
         <span data-i18n="tool.views">Views</span>
       </button>
+      <button data-tool="pin" data-i18n-title="tool.pin">
+        <svg viewBox="0 0 20 20" class="tico"><path d="M10 17.5V11"/><circle cx="10" cy="7" r="4.2"/></svg>
+        <span data-i18n="tool.pin">Pin</span>
+      </button>
       <button data-tool="ghost" data-i18n-title="tool.ghost">
         <svg viewBox="0 0 20 20" class="tico"><circle cx="7.6" cy="10" r="4.6"/><circle cx="12.4" cy="10" r="4.6"/></svg>
         <span data-i18n="tool.ghost">Transparency</span>
@@ -234,6 +247,12 @@
       <svg viewBox="0 0 16 16" class="ico"><path d="M3 8a5 5 0 1 0 1.6-3.7"/><path d="M3 2.2V5h2.8"/></svg>
       <span data-i18n="view.reset">Reset view</span>
     </button>
+
+    <!-- pins -->
+    <div class="pinlayer" id="pinLayer" hidden>
+      <svg class="pinlines" id="pinLines"></svg>
+      <div class="pinlabels" id="pinLabels"></div>
+    </div>
 
     <!-- hover tooltip -->
     <div class="tooltip" id="tooltip" hidden></div>

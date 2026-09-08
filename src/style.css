@@ -661,3 +661,53 @@ button { cursor: pointer; border: 0; background: none; }
   .viewsheet { bottom: calc(130px + var(--sab)); }
   .viewsheet-btns button { min-height: 40px; }
 }
+
+/* ---------------------------------------------------------------- pins
+   Labels that stay on a structure while the model turns: an SVG layer for the
+   leader lines, absolutely positioned labels above it. */
+.pinlayer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.pinlines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.pinlines line { stroke: rgba(20, 22, 26, .45); stroke-width: 1; }
+.pinlines circle { fill: var(--accent); }
+.pinlabels { position: absolute; inset: 0; }
+.pin {
+  position: absolute; display: flex; align-items: center; gap: 6px;
+  padding: 4px 6px 4px 9px; border-radius: 8px; pointer-events: auto;
+  background: var(--card-solid); border: 1px solid var(--line);
+  box-shadow: var(--shadow); font-size: 10.5px; font-weight: 500;
+  white-space: nowrap; max-width: 210px;
+  transform: translate(0, -50%);
+}
+.pin.is-selected { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pin .pname { overflow: hidden; text-overflow: ellipsis; }
+.pin .pdrop {
+  flex: 0 0 auto; width: 16px; height: 16px; border-radius: 5px;
+  display: grid; place-items: center; font-size: 13px; line-height: 1;
+  color: var(--ink-3);
+}
+.pin .pdrop:hover { background: var(--bg-2); color: var(--ink); }
+.pin.is-selected .pdrop { color: rgba(255, 255, 255, .7); }
+.is-touch .pin { font-size: 12px; padding: 7px 8px 7px 11px; }
+
+/* ------------------------------------------------------------ saved views */
+.marks { padding: 12px; flex: 0 0 auto; }
+.marklist { display: flex; flex-direction: column; gap: 2px; max-height: 168px; overflow-y: auto; }
+.markrow {
+  display: flex; align-items: center; gap: 8px; padding: 6px 6px; border-radius: 8px;
+}
+.markrow:hover { background: var(--bg-2); }
+.markrow .mname { flex: 1 1 auto; text-align: left; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.markrow .mmeta { font-size: 9px; color: var(--ink-3); flex: 0 0 auto; }
+.markrow .mdel { width: 18px; height: 18px; border-radius: 5px; color: var(--ink-3); flex: 0 0 auto; }
+.markrow .mdel:hover { background: var(--card-solid); color: var(--ink); }
+.marks-empty { font-size: 10.5px; color: var(--ink-3); padding: 4px 6px 2px; }
+
+/* Three panels do not always fit a laptop screen, let alone an iPad in
+   landscape, so the rail scrolls rather than sliding under the toolbar. */
+.leftrail {
+  max-height: calc(100vh - 300px - var(--sab));
+  overflow-y: auto; overflow-x: hidden; padding-right: 2px;
+  scrollbar-width: thin;
+}
+.leftrail::-webkit-scrollbar { width: 6px; }
+.leftrail::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
