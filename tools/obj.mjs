@@ -1,8 +1,10 @@
-// Minimal OBJ reader for BodyParts3D element files: they only carry `v` and
-// `f` lines, but face entries may still use the v/vt/vn forms.
+// Minimal OBJ reader for BodyParts3D element files. They carry `v`, `vn` and
+// `f` lines, one normal per vertex; the authored normals hold the sculpted
+// surface relief, so they are kept rather than recomputed.
 export function parseObj(buf) {
   const s = buf.length !== undefined && typeof buf !== 'string' ? buf.toString('latin1') : buf;
   const pos = [];
+  const nrm = [];
   const idx = [];
   let i = 0;
   const n = s.length;
@@ -21,6 +23,9 @@ export function parseObj(buf) {
     if (c === 'v' && (s[i + 1] === ' ' || s[i + 1] === '\t')) {
       i += 2;
       pos.push(num(), num(), num());
+    } else if (c === 'v' && s[i + 1] === 'n' && (s[i + 2] === ' ' || s[i + 2] === '\t')) {
+      i += 3;
+      nrm.push(num(), num(), num());
     } else if (c === 'f' && (s[i + 1] === ' ' || s[i + 1] === '\t')) {
       i += 2;
       face.length = 0;
@@ -42,7 +47,7 @@ export function parseObj(buf) {
     while (i < n && s[i] !== '\n') i++;
     i++;
   }
-  return { pos: Float32Array.from(pos), idx: Uint32Array.from(idx) };
+  return { pos: Float32Array.from(pos), nrm: Float32Array.from(nrm), idx: Uint32Array.from(idx) };
 }
 
 // Area-weighted smooth normals.

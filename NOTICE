@@ -18,6 +18,15 @@ from the Foundational Model of Anatomy (FMA) via the BodyParts3D mapping tables.
 Because the source data is share-alike, this viewer as a whole is distributed under
 CC Attribution-Share Alike 2.1 Japan.
 
+Reference implementation
+-----------------------
+The system taxonomy (15 systems), the element-to-system mapping in
+tools/system-map.json, the display palette and the rendering setup (prefiltered
+room environment, light rig, ACES tone mapping, decimation parameters) follow:
+
+  ashemag/human-atlas — MIT License, Copyright (c) 2026 ashemag
+  https://github.com/ashemag/human-atlas
+
 Structure text and Portuguese names
 -----------------------------------
 Lead paragraphs shown in the detail panel are excerpts from Wikipedia (English and

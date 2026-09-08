@@ -52,14 +52,15 @@ each structure falls back to a sentence derived from the FMA hierarchy.
 1. `fetch-data.mjs` pulls the BodyParts3D element meshes plus the FMA name and
    hierarchy tables.
 2. Each of the 2,234 element meshes is named from its **most specific** FMA concept
-   (deepest node of the is-a tree that owns the fewest meshes), then classified into a
-   system by matching ordered patterns against its own name and every ancestor class
-   name (`tools/systems.mjs`). The counts fall out close to the published atlas:
-   639 arteries, 395 veins, 391 muscles, 260 bones.
-3. Meshes are welded (BP3D ships triangle soups), then decimated with
-   meshoptimizer under a **power-law triangle budget** — small structures such as
-   arterioles keep nearly all their detail, the few huge meshes take the cut —
-   landing on ~3.0 M triangles total, down from 6.7 M.
+   (deepest node of the is-a tree that owns the fewest meshes). The system each mesh
+   belongs to comes from `tools/system-map.json`, the taxonomy published by the
+   reference implementation: 639 arteries, 404 veins, 402 muscles, 296 skeletal,
+   40 connective, and so on across 15 systems.
+3. Topology is left untouched — the OBJ files carry authored vertex normals that hold
+   the sculpted surface relief, and welding would throw them away. Each mesh is
+   decimated with meshoptimizer to 22% of its triangles with the geometric error bounded
+   to 0.2% of the part's extent, landing on ~2.4 M triangles total, down from 6.7 M.
+   The original normals travel with the surviving vertices.
 4. Per structure the build also derives its **volume** (signed tetrahedron sum, in cm³),
    its **principal axis**, and its **contralateral partner**, matched on the name minus its
    side word.
@@ -85,12 +86,16 @@ outside the clip volume.
 The result is the whole body in **13 draw calls at 60 fps**, with per-structure
 picking done by rendering a 1×1 pixel id-buffer under the cursor.
 
-Shading is deliberately plain: a wrapped-diffuse studio setup with a light that rides the
-camera, so a structure reads the same from any angle. What sells the depth is a **depth-buffer
-SSAO pass** — the scene renders into a half-float target with a float depth texture, a
-half-resolution pass reconstructs view position and normals from that depth alone (24
-hemisphere samples plus a depth-discontinuity crease term), and the composite multiplies it
-back over the colour. One geometry pass, contact darkening in every seam, still 60 fps.
+Shading is physically based and follows the reference: one `MeshStandardMaterial` per system,
+lit by a prefiltered `RoomEnvironment` plus a warm key and a cool rim, tone mapped with the
+ACES filmic curve, with the figure standing on a turntable so the eye can read its size. The
+surface detail is geometric, not procedural — it comes from the authored normals the build
+preserves.
+
+The materials' shaders are extended through `onBeforeCompile`, which is what lets the
+per-structure logic ride along with three's own lighting: the vertex stage dequantises the
+position and moves the part to wherever the current explode and inventory amounts put it, and
+the fragment stage discards hidden or cut geometry and tints the selection.
 
 Cuts are a world-space box tested in the fragment shader (the picking pass tests it too, so
 you cannot select what you cannot see); back faces switch on with the cut so the exposed

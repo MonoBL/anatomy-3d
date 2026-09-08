@@ -51,7 +51,7 @@ export async function loadSystem(system, base = '/atlas', onProgress) {
   let o = 12 + jsonLen;
   const take = (bytes) => { const at = o; o += bytes + ((4 - (bytes % 4)) % 4); return at; };
   const position = new Uint16Array(buf, take(V * 3 * 2), V * 3);
-  const normal = new Int8Array(buf, take(V * 3), V * 3);
+  const normal = new Int16Array(buf, take(V * 3 * 2), V * 3);
   const pid = new Uint16Array(buf, take(V * 2), V);
   const index = new Uint32Array(buf, take(I * 4), I);
   return { header, position, normal, pid, index };

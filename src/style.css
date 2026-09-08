@@ -32,6 +32,11 @@ button { cursor: pointer; border: 0; background: none; }
 
 #app { position: fixed; inset: 0; }
 #stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+/* Sits the render in the page instead of letting it float on flat white. */
+.vignette {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 51% 45%, transparent 38%, rgba(131, 145, 158, .10) 100%);
+}
 
 /* ---------------------------------------------------------- masthead */
 .masthead { position: absolute; top: 26px; left: 30px; pointer-events: none; }
@@ -94,7 +99,7 @@ button { cursor: pointer; border: 0; background: none; }
   border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
 }
 .leftrail {
-  position: absolute; top: 132px; left: 30px; width: 232px;
+  position: absolute; top: 132px; left: 30px; width: 248px;
   display: flex; flex-direction: column; gap: 10px;
   max-height: calc(100vh - 190px);
 }
@@ -110,8 +115,9 @@ button { cursor: pointer; border: 0; background: none; }
 }
 .tabs { display: flex; gap: 2px; padding: 2px; background: var(--bg-2); border-radius: 8px; margin-bottom: 8px; }
 .tab {
-  flex: 1; font-size: 10.5px; font-weight: 500; color: var(--ink-2);
-  padding: 5px 0; border-radius: 6px; transition: background .15s, color .15s;
+  flex: 1; min-width: 0; font-size: 9.5px; font-weight: 500; color: var(--ink-2);
+  padding: 5px 1px; border-radius: 6px; letter-spacing: -0.01em; transition: background .15s, color .15s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tab.is-active { background: var(--card-solid); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.05); }
 .syslist { display: flex; flex-direction: column; max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; margin: 0 -4px; padding: 0 4px; }

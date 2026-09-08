@@ -7,13 +7,13 @@ const FMA_URL = id => `https://bioportal.bioontology.org/ontologies/FMA?p=classe
 const WIKI_URL = (lang, title) => `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
 
 // Which systems each preset tab turns on.
-const TAB_GROUPS = { all: null, skeleton: ['skeleton'], organs: ['organs'] };
+const TAB_GROUPS = { all: null, skeleton: ['skeleton'], muscles: ['muscles'], organs: ['organs'] };
 // Skin hides everything underneath, so the atlas opens on the muscle body.
-const DEFAULT_OFF = new Set(['integument']);
+const DEFAULT_OFF = new Set(['integumentary']);
 // Big structures first so something recognisable shows up early.
-const LOAD_ORDER = ['skeleton', 'muscles', 'arteries', 'veins', 'nervous', 'respiratory',
-  'digestive', 'heart', 'sensory', 'teeth', 'urinary', 'reproductive', 'endocrine',
-  'lymphatic', 'integument', 'other'];
+const LOAD_ORDER = ['skeletal', 'muscular', 'arterial', 'venous', 'nervous', 'respiratory',
+  'digestive', 'cardiac', 'sensory', 'connective', 'urinary', 'reproductive', 'endocrine',
+  'lymphatic', 'integumentary'];
 // The three cardinal cut planes, each mapped to a world axis.
 const CUTS = [
   { id: 'sagittal', axis: 0, label: 'cut.sagittal' },

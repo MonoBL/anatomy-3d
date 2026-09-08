@@ -11,7 +11,7 @@ for (const sys of index.systems) {
   const take = b => { const at = o; o += b + ((4 - (b % 4)) % 4); return at; };
   const V = h.vertexCount, I = h.indexCount;
   const pos = new Uint16Array(ab, take(V * 3 * 2), V * 3);
-  const nrm = new Int8Array(ab, take(V * 3), V * 3);
+  const nrm = new Int16Array(ab, take(V * 3 * 2), V * 3);
   const pid = new Uint16Array(ab, take(V * 2), V);
   const idx = new Uint32Array(ab, take(I * 4), I);
   let maxI = 0; for (let i = 0; i < I; i++) if (idx[i] > maxI) maxI = idx[i];

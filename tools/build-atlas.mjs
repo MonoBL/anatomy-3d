@@ -4,17 +4,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { MeshoptSimplifier, MeshoptEncoder } from 'meshoptimizer';
-import { parseObj, computeNormals, weld } from './obj.mjs';
+import { parseObj } from './obj.mjs';
 import { loadGraph, loadElements, ancestorsOf, ROOT } from './lib-bp3d.mjs';
-import { SYSTEMS, ALL_SYSTEMS, classify } from './systems.mjs';
+import { ALL_SYSTEMS } from './systems.mjs';
 import { loadSources, describePart } from './describe.mjs';
 
 const OBJ_DIR = path.join(ROOT, 'data/obj/isa_BP3D_4.0_obj_99');
 const OUT_DIR = path.join(ROOT, 'public/atlas');
 
-const TRI_BUDGET = 3_000_000;   // total triangles after simplification
-const MIN_TRIS = 32;            // never decimate a part below this
-const BODY_HEIGHT = 1.75;       // world units for the tallest axis
+// Decimation settings follow the reference implementation: every named mesh is
+// preserved, kept to 22% of its triangles with the geometric error bounded to
+// 0.2% of the part's extent.
+const KEEP_RATIO = 0.22;
+const MIN_INDICES = 96;
+const MAX_ERROR = 0.002;
 const GRID_ASPECT = 2.6;        // inventory wall proportions
 const log = (...a) => console.log(...a);
 
@@ -23,6 +26,7 @@ function buildMeta() {
   const { parents, names } = loadGraph('isa');
   const partof = loadGraph('partof');
   const { byConcept, byElement } = loadElements('isa');
+  const map = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/system-map.json'), 'utf8'));
   const ancMemo = new Map(), depthMemo = new Map();
   const depth = id => {
     if (depthMemo.has(id)) return depthMemo.get(id);
@@ -33,6 +37,7 @@ function buildMeta() {
     return d;
   };
   const nameOf = id => names.get(id) ?? byConcept.get(id)?.name ?? id;
+  const known = new Set(ALL_SYSTEMS.map(x => x.id));
   const meta = new Map();
   for (const [eid, cids] of byElement) {
     // The most specific concept naming this mesh: deepest in the is-a tree,
@@ -42,14 +47,15 @@ function buildMeta() {
       const dc = depth(c), db = depth(best);
       if (dc > db || (dc === db && byConcept.get(c).els.length < byConcept.get(best).els.length)) best = c;
     }
-    const name = byConcept.get(best).name;
+    const name = map.names?.[eid] ?? byConcept.get(best).name;
     const ancIds = [...ancestorsOf(parents, best, ancMemo)].sort((a, b) => depth(b) - depth(a));
     const anc = ancIds.map(nameOf);
-    // Nearest is-a parent and part-of parent, used for the fallback sentence.
     const isaParent = anc[0] ?? null;
     const partofParent = [...(partof.parents.get(best) ?? [])].map(id => partof.names.get(id))[0] ?? null;
+    const mapped = map.systems?.[eid];
     meta.set(eid, {
-      fma: best, name, system: classify(name, anc),
+      fma: best, name,
+      system: known.has(mapped) ? mapped : 'connective',
       chain: [best, ...ancIds.slice(0, 8)],
       chainNames: [name, ...ancIds.slice(0, 8).map(nameOf)],
       isaParent, partofParent,
@@ -133,32 +139,18 @@ function extentAlong(pos, centroid, axis) {
 const titleCase = s => s.replace(/\b([a-z])(\w*)/g, (m, a, b) =>
   /^(of|the|and|to|in|for|at|on|with|from|by)$/.test(m) ? m : a.toUpperCase() + b);
 
-// Power-law triangle budget: small parts keep almost all detail, huge meshes
-// take the cut. Solve for the scale factor that lands on TRI_BUDGET.
-function solveBudget(tris) {
-  const P = 0.72;
-  const total = tris.reduce((a, b) => a + b, 0);
-  if (total <= TRI_BUDGET) return () => Infinity;
-  let lo = 0, hi = 1e6;
-  const sum = A => tris.reduce((acc, t) => acc + Math.min(t, Math.max(MIN_TRIS, Math.round(A * Math.pow(t, P)))), 0);
-  for (let i = 0; i < 60; i++) {
-    const mid = (lo + hi) / 2;
-    if (sum(mid) > TRI_BUDGET) hi = mid; else lo = mid;
-  }
-  const A = lo;
-  return t => Math.min(t, Math.max(MIN_TRIS, Math.round(A * Math.pow(t, P))));
-}
-
-
-// Rebuild a vertex buffer from a meshoptimizer remap table.
-function applyRemap(pos, remap, uniqueVerts) {
-  const out = new Float32Array(uniqueVerts * 3);
+// Rebuild vertex buffers from a meshoptimizer remap table. Positions and the
+// authored normals have to travel together.
+function applyRemap(buffers, remap, uniqueVerts) {
+  const out = buffers.map(() => new Float32Array(uniqueVerts * 3));
   for (let v = 0; v < remap.length; v++) {
     const d = remap[v];
     if (d === 0xffffffff) continue;
-    out[d * 3] = pos[v * 3];
-    out[d * 3 + 1] = pos[v * 3 + 1];
-    out[d * 3 + 2] = pos[v * 3 + 2];
+    for (let b = 0; b < buffers.length; b++) {
+      out[b][d * 3] = buffers[b][v * 3];
+      out[b][d * 3 + 1] = buffers[b][v * 3 + 1];
+      out[b][d * 3 + 2] = buffers[b][v * 3 + 2];
+    }
   }
   return out;
 }
@@ -179,65 +171,56 @@ async function main() {
     const eid = f.replace(/\.obj$/, '');
     const m = meta.get(eid);
     if (!m) { log(`  skip ${eid} (no metadata)`); continue; }
-    const parsed = parseObj(fs.readFileSync(path.join(OBJ_DIR, f)));
-    if (!parsed.idx.length) { log(`  skip ${eid} (empty)`); continue; }
-    const { pos, idx } = weld(parsed.pos, parsed.idx);
-    raw.push({ eid, ...m, pos, idx });
+    const { pos, nrm, idx } = parseObj(fs.readFileSync(path.join(OBJ_DIR, f)));
+    if (!idx.length) { log(`  skip ${eid} (empty)`); continue; }
+    // Topology is left alone: the authored normals only line up with the
+    // original vertices, and they carry the sculpted surface detail.
+    raw.push({ eid, ...m, pos, nrm, idx });
   }
   log(`parsed ${raw.length} meshes, ${raw.reduce((a, r) => a + r.idx.length / 3, 0)} tris`);
 
-  const budget = solveBudget(raw.map(r => r.idx.length / 3));
-
-  // Simplify, then rebuild a compact vertex buffer per part.
-  let keptTris = 0;
+  // Simplify, then rebuild compact vertex buffers per part.
+  let keptTris = 0, worstError = 0;
   for (const r of raw) {
-    const targetTris = budget(r.idx.length / 3);
+    const target = Math.max(MIN_INDICES, Math.floor(r.idx.length * KEEP_RATIO / 3) * 3);
     let idx = r.idx;
-    if (targetTris < r.idx.length / 3) {
-      const [simplified] = MeshoptSimplifier.simplify(
-        r.idx, r.pos, 3, targetTris * 3, 0.05, ['LockBorder']);
-      if (simplified.length >= 3) idx = simplified;
-    }
+    const [simplified, error] = MeshoptSimplifier.simplify(
+      r.idx, r.pos, 3, Math.min(r.idx.length, target), MAX_ERROR);
+    if (simplified.length >= 3) idx = simplified;
+    worstError = Math.max(worstError, error);
     // compactMesh and reorderMesh both renumber `idx` in place and hand back the
-    // old -> new vertex map, which the caller must apply to the vertex buffer.
-    let pos = applyRemap(r.pos, ...MeshoptSimplifier.compactMesh(idx));
+    // old -> new vertex map, which the caller must apply to the vertex buffers.
+    let [pos, nrm] = applyRemap([r.pos, r.nrm], ...MeshoptSimplifier.compactMesh(idx));
     // Reorder for GPU cache locality; it also makes the buffers gzip better.
-    pos = applyRemap(pos, ...MeshoptEncoder.reorderMesh(idx, true, false));
+    [pos, nrm] = applyRemap([pos, nrm], ...MeshoptEncoder.reorderMesh(idx, true, false));
     r.pos = pos;
+    r.nrm = nrm;
     r.idx = idx;
     keptTris += idx.length / 3;
   }
+  log(`worst relative error ${worstError.toFixed(5)}`);
   log(`simplified to ${keptTris} tris`);
 
-  // BP3D is millimetres, Z-up, +Y posterior. Map to Y-up, +Z anterior.
+  // BP3D is millimetres and Z-up with +Y posterior. Convert to metres and Y-up,
+  // using the same offsets as the reference so the figure stands on the floor.
   const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
   for (const r of raw) {
-    const p = r.pos;
+    const p = r.pos, n = r.nrm;
     for (let i = 0; i < p.length; i += 3) {
-      const x = p[i], y = p[i + 2], z = -p[i + 1];
+      const x = p[i] * 0.001, y = p[i + 2] * 0.001 + 0.0781112, z = -p[i + 1] * 0.001 - 0.1;
       p[i] = x; p[i + 1] = y; p[i + 2] = z;
+      const nx = n[i], ny = n[i + 2], nz = -n[i + 1];
+      n[i] = nx; n[i + 1] = ny; n[i + 2] = nz;
       if (x < mn[0]) mn[0] = x; if (x > mx[0]) mx[0] = x;
       if (y < mn[1]) mn[1] = y; if (y > mx[1]) mx[1] = y;
       if (z < mn[2]) mn[2] = z; if (z > mx[2]) mx[2] = z;
     }
   }
-  const scale = BODY_HEIGHT / (mx[1] - mn[1]);
-  const mid = [0, 1, 2].map(a => (mn[a] + mx[a]) / 2);
-  for (const r of raw) {
-    const p = r.pos;
-    for (let i = 0; i < p.length; i += 3) {
-      p[i] = (p[i] - mid[0]) * scale;
-      p[i + 1] = (p[i + 1] - mid[1]) * scale;
-      p[i + 2] = (p[i + 2] - mid[2]) * scale;
-    }
-  }
-  const worldMin = [0, 1, 2].map(a => (mn[a] - mid[a]) * scale);
-  const worldMax = [0, 1, 2].map(a => (mx[a] - mid[a]) * scale);
+  const worldMin = [...mn], worldMax = [...mx];
   log('world bounds', worldMin.map(v => v.toFixed(3)).join(','), '->', worldMax.map(v => v.toFixed(3)).join(','));
 
   // Per-part normals, bounds and centroid.
   for (const r of raw) {
-    r.nrm = computeNormals(r.pos, r.idx);
     const bmin = [Infinity, Infinity, Infinity], bmax = [-Infinity, -Infinity, -Infinity];
     for (let i = 0; i < r.pos.length; i += 3)
       for (let a = 0; a < 3; a++) {
@@ -273,7 +256,7 @@ async function main() {
   raw.forEach((r, i) => {
     const cx = (i % cols) - (cols - 1) / 2;
     const cy = (rows - 1) / 2 - Math.floor(i / cols);
-    r.slot = [cx * cell, cy * cell * 1.06, 0];
+    r.slot = [cx * cell, cy * cell * 1.06 + (worldMin[1] + worldMax[1]) / 2, 0];
   });
   log(`inventory grid ${cols} x ${rows}, cell ${cell.toFixed(3)}`);
 
@@ -287,7 +270,7 @@ async function main() {
     const I = parts.reduce((a, r) => a + r.idx.length, 0);
 
     const pos = new Uint16Array(V * 3);
-    const nrm = new Int8Array(V * 3);
+    const nrm = new Int16Array(V * 3);
     const pid = new Uint16Array(V);
     const idx = new Uint32Array(I);
     const entries = [];
@@ -298,7 +281,7 @@ async function main() {
         for (let a = 0; a < 3; a++) {
           const q = Math.round((r.pos[v * 3 + a] - qMin[a]) / qScale[a]);
           pos[(vo + v) * 3 + a] = Math.min(65535, Math.max(0, q));
-          nrm[(vo + v) * 3 + a] = Math.max(-127, Math.min(127, Math.round(r.nrm[v * 3 + a] * 127)));
+          nrm[(vo + v) * 3 + a] = Math.max(-32767, Math.min(32767, Math.round(r.nrm[v * 3 + a] * 32767)));
         }
         pid[vo + v] = r.id;
       }
