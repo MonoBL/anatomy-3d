@@ -343,12 +343,18 @@ async function main() {
     pt: Object.fromEntries(ALL_SYSTEMS.map(s => [s.id, s.info.pt])),
   };
   const text = { en: {}, pt: {} };
-  let ptNamed = 0, wikiEn = 0, wikiPt = 0;
+  let ptNamed = 0, ptDerived = 0, wikiEn = 0, wikiPt = 0;
   for (const r of raw) {
     const t = describePart({ ...r, name: r.name }, sources, systemInfo);
     text.en[r.id] = { d: t.descEn, ...(t.srcEn ? { s: t.srcEn.t } : {}) };
-    text.pt[r.id] = { d: t.descPt, ...(t.namePt ? { n: t.namePt } : {}), ...(t.srcPt ? { s: t.srcPt.t } : {}) };
-    if (t.namePt) ptNamed++;
+    text.pt[r.id] = {
+      d: t.descPt,
+      ...(t.namePt ? { n: t.namePt } : {}),
+      ...(t.namePtDerived ? { dn: 1 } : {}),
+      ...(t.srcPt ? { s: t.srcPt.t } : {}),
+    };
+    if (t.namePt && !t.namePtDerived) ptNamed++;
+    if (t.namePtDerived) ptDerived++;
     if (t.srcEn) wikiEn++;
     if (t.srcPt) wikiPt++;
   }
@@ -356,7 +362,8 @@ async function main() {
     const json = JSON.stringify(text[lang]);
     fs.writeFileSync(path.join(OUT_DIR, `text-${lang}.json.gz`), zlib.gzipSync(json, { level: 9 }));
   }
-  log(`text: ${ptNamed} portuguese names, ${wikiEn} en / ${wikiPt} pt wikipedia paragraphs`);
+  log(`text: ${ptNamed} verified + ${ptDerived} derived portuguese names, `
+    + `${wikiEn} en / ${wikiPt} pt wikipedia paragraphs`);
 
   const index = {
     version: 2,
@@ -375,7 +382,7 @@ async function main() {
     })),
     quant: { min: qMin, scale: qScale },
     grid: { cols, rows, cell },
-    coverage: { ptNames: ptNamed, wikiEn, wikiPt },
+    coverage: { ptNames: ptNamed, ptDerived, wikiEn, wikiPt },
     systems,
     parts: raw.map(r => ({
       i: r.id, e: r.eid, n: titleCase(r.name), f: r.fma, s: r.system,

@@ -48,6 +48,9 @@
       <div class="langswitch" id="langSwitch" data-i18n-title="lang">
         <button data-lang="en">EN</button><button data-lang="pt">PT</button>
       </div>
+      <button class="iconbtn" id="installBtn" data-i18n-title="install.title">
+        <svg viewBox="0 0 16 16" class="ico"><path d="M8 10.5V2.5"/><path d="M5.2 5.3 8 2.4l2.8 2.9"/><path d="M3 10v3.2h10V10"/></svg>
+      </button>
       <button class="iconbtn" id="infoBtn" data-i18n-title="info.title">
         <svg viewBox="0 0 16 16" class="ico"><circle cx="8" cy="8" r="6.5"/><path d="M8 7.2v4M8 4.9v.1"/></svg>
       </button>
@@ -277,6 +280,20 @@
       <div class="loader-inner">
         <div class="loader-bar"><i id="loaderBar"></i></div>
         <div class="loader-txt" id="loaderTxt">Loading atlas…</div>
+      </div>
+    </div>
+
+    <div class="modal" id="installModal" hidden>
+      <div class="modal-card">
+        <button class="closebtn" id="installClose" aria-label="Close">×</button>
+        <h3 data-i18n="install.title">Add to an iPad</h3>
+        <ol class="steps">
+          <li data-i18n="install.step1">Open this page in Safari on the iPad.</li>
+          <li data-i18n="install.step2">Tap the Share button, then “Add to Home Screen”.</li>
+          <li data-i18n="install.step3">Open the atlas from the home screen: it runs full screen, with no browser bars.</li>
+          <li data-i18n="install.step4">Inside it, open the panels (☰) and press “Save for offline use” to store the whole atlas on the device.</li>
+        </ol>
+        <p class="lic" data-i18n="install.note">After that it works with no connection, and a lecture hall's wifi stops mattering.</p>
       </div>
     </div>
 

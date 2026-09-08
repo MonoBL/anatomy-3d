@@ -908,3 +908,10 @@ button { cursor: pointer; border: 0; background: none; }
     max-width: min(700px, calc(100vw - 700px));
   }
 }
+
+/* The install steps, behind the arrow-into-tray button next to (i). */
+.modal-card .steps {
+  margin: 0 0 12px; padding-left: 20px;
+  font-size: 12px; line-height: 1.6; color: var(--ink-2);
+}
+.modal-card .steps li { margin-bottom: 7px; }

@@ -3,11 +3,13 @@
 //   * names      — Wikidata (property P1402 -> FMA), sitelink title or label
 //   * paragraphs — Wikipedia lead sections in each language
 //   * fallback   — a sentence derived from the FMA hierarchy itself
-// Nothing is machine-translated. A structure with no Portuguese source keeps its
-// anatomical English name, and the UI says so.
+// Nothing is machine-translated. A structure with no verified Portuguese name
+// gets one derived mechanically from the English by tools/pt-derive.mjs, marked
+// as derived so the interface can say the name is not verified.
 import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT } from './lib-bp3d.mjs';
+import { derivePtName } from './pt-derive.mjs';
 
 const MAX_CHARS = 340;
 const MAX_DESC_DIST = 3;   // how far up the is-a tree a paragraph may come from
@@ -70,6 +72,7 @@ export function describePart(part, { wikidata, wikipedia }, systemInfo) {
   // otherwise the ancestor names a different (broader) structure.
   const ptHit = findHit(chain, chainNames, wikidata, e => e.pt || e.ptLabel);
   let namePt = null;
+  let namePtDerived = false;
   if (ptHit) {
     const matches = ptHit.i === 0 || (ptHit.name && norm(ptHit.name) === bare)
       || norm(ptHit.entry.enLabel ?? '') === bare || norm(ptHit.entry.en ?? '') === bare;
@@ -77,6 +80,11 @@ export function describePart(part, { wikidata, wikipedia }, systemInfo) {
       const base = cap(ptHit.value);
       namePt = side && ptHit.i > 0 ? withSide(base, side) : base;
     }
+  }
+  // No verified name: derive one from the vocabulary, and say that it is derived.
+  if (!namePt) {
+    const derived = derivePtName(name);
+    if (derived) { namePt = derived.name; namePtDerived = true; }
   }
 
   // ---- paragraphs ----
@@ -91,6 +99,7 @@ export function describePart(part, { wikidata, wikipedia }, systemInfo) {
 
   return {
     namePt,
+    namePtDerived,
     descEn: enText ?? structural ?? systemInfo.en[system],
     descPt: ptText ?? systemInfo.pt[system],
     srcEn: enText ? { t: enHit.value, exact: enHit.i === 0 } : null,

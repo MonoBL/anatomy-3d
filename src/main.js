@@ -137,8 +137,10 @@ function renderAbout() {
     paragraphs are the lead sections of the matching Wikipedia articles, reached through the
     Wikidata FMA mapping: ${n.format(cov.wikiEn ?? 0)} structures in English and
     ${n.format(cov.wikiPt ?? 0)} in Portuguese. ${n.format(cov.ptNames ?? 0)} pieces carry a
-    verified Portuguese name; the rest keep their anatomical English name rather than a
-    machine translation.</p>
+    Portuguese name verified against those sources. The other ${n.format(cov.ptDerived ?? 0)}
+    are derived mechanically from the English by a built-in anatomical vocabulary — noun first,
+    adjectives agreeing in gender — and the panel marks them as derived rather than passing
+    them off as verified. Nothing is machine-translated.</p>
     <p><strong>Who made this.</strong> Built by
     <a href="https://github.com/MonoBL" target="_blank" rel="noopener">Nuno Mendes</a>, from
     scratch, taking <a href="https://github.com/ashemag/human-atlas" target="_blank" rel="noopener">ashemag/human-atlas</a>
@@ -160,8 +162,10 @@ function renderAbout() {
     cada estrutura são a introdução do artigo correspondente da Wikipédia, encontrado através
     do mapeamento FMA da Wikidata: ${n.format(cov.wikiEn ?? 0)} estruturas em inglês e
     ${n.format(cov.wikiPt ?? 0)} em português. ${n.format(cov.ptNames ?? 0)} peças têm nome
-    português verificado; as restantes mantêm o nome anatómico inglês em vez de uma tradução
-    automática.</p>
+    português verificado nessas fontes. As outras ${n.format(cov.ptDerived ?? 0)} são derivadas
+    mecanicamente do inglês por um vocabulário anatómico próprio — substantivo primeiro,
+    adjetivos a concordar em género — e o painel marca-as como derivadas em vez de as
+    apresentar como verificadas. Nada é traduzido por máquina.</p>
     <p><strong>Quem fez isto.</strong> Desenvolvido de raiz por
     <a href="https://github.com/MonoBL" target="_blank" rel="noopener">Nuno Mendes</a>, tendo
     como referência o <a href="https://github.com/ashemag/human-atlas" target="_blank" rel="noopener">ashemag/human-atlas</a>
@@ -1087,9 +1091,13 @@ function selectPart(id, { focus = false, keepSelection = false } = {}) {
   $('#detailTitle').textContent = viewer.selection.size > 1
     ? `${partName(p)} +${viewer.selection.size - 1}`
     : partName(p);
+  // Portuguese names that were derived mechanically say so; a verified one
+  // says nothing.
+  const derivedPt = state.lang === 'pt' && !!txt.dn;
   const noPt = state.lang === 'pt' && !txt.n;
-  $('#detailAlt').textContent = noPt ? state.t('detail.noPt') : '';
-  $('#detailAlt').hidden = !noPt;
+  const note = derivedPt ? state.t('detail.derivedPt') : noPt ? state.t('detail.noPt') : '';
+  $('#detailAlt').textContent = note;
+  $('#detailAlt').hidden = !note;
   $('#detailDesc').textContent = txt.d ?? sys.info?.[state.lang] ?? '';
   $('#detailNote').textContent = txt.s
     ? `${state.t('src.wikipedia')} · ${txt.s}`
@@ -1318,6 +1326,15 @@ function bindUI() {
 
   // about --------------------------------------------------------------
   $('#infoBtn').addEventListener('click', () => { $('#aboutModal').hidden = false; });
+  $('#installBtn').addEventListener('click', () => { $('#installModal').hidden = false; });
+  $('#installClose').addEventListener('click', () => { $('#installModal').hidden = true; });
+  $('#installModal').addEventListener('click', e => {
+    if (e.target === $('#installModal')) $('#installModal').hidden = true;
+  });
+  // Already installed: the instructions are moot.
+  if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
+    $('#installBtn').hidden = true;
+  }
   $('#aboutClose').addEventListener('click', () => { $('#aboutModal').hidden = true; });
   $('#aboutModal').addEventListener('click', e => {
     if (e.target.id === 'aboutModal') $('#aboutModal').hidden = true;
@@ -1329,6 +1346,7 @@ function bindUI() {
     if (e.key === '/') { e.preventDefault(); input.focus(); }
     else if (e.key === 'Escape') {
       if (!$('#contents').hidden) openContents(false);
+      else if (!$('#installModal').hidden) $('#installModal').hidden = true;
       else { selectPart(-1); $('#aboutModal').hidden = true; }
     }
     else if (e.key === 'z' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); undo(); }
