@@ -8,3 +8,4 @@ data/wikidata.json
 data/wikipedia.json
 # Cached occlusion samples for the layer pass (rebuilt automatically)
 data/layer-samples.json
+.vercel

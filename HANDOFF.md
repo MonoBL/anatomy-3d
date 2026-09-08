@@ -178,8 +178,9 @@ Do not re-learn these:
 
 ## Known gaps / candidates for next
 
-- **Not deployed.** `npm run build` produces a static `dist/`; the PWA plumbing (manifest,
-  icons, service worker, Vercel cache headers) is in place and waiting for the deploy.
+- **Deployed** at <https://anatomia-ochre.vercel.app> — Vercel, static, `vercel --prod --yes`
+  from the repo root (the CLI's project link lives in `.vercel/`, gitignored). Nothing is
+  connected to GitHub, so a deploy is that one command.
 - **No peripheral nerves in the source.** All 139 BodyParts3D nervous meshes are cranial, so
   the limbs have no nerve plates. Veins are almost all trunk. Dataset, not pipeline.
 - Sub-region cards (a "Hand · bones" plate) are not in the contents yet; the data is there.
