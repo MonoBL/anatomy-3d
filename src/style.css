@@ -247,7 +247,8 @@ button { cursor: pointer; border: 0; background: none; }
 .modal-card h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
 .modal-card p { margin: 0 0 11px; font-size: 12px; line-height: 1.6; color: var(--ink-2); }
 .modal-card .lic { font-size: 10.5px; color: var(--ink-3); }
-.modal-card a { color: inherit; }
+.modal-card a { color: inherit; text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--line); }
+.modal-card a:hover { color: var(--ink); text-decoration-color: currentColor; }
 
 /* -------------------------------------------------------------- mobile */
 @media (max-width: 820px) {

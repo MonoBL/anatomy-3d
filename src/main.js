@@ -139,6 +139,14 @@ function renderAbout() {
     ${n.format(cov.wikiPt ?? 0)} in Portuguese. ${n.format(cov.ptNames ?? 0)} pieces carry a
     verified Portuguese name; the rest keep their anatomical English name rather than a
     machine translation.</p>
+    <p><strong>Who made this.</strong> Built by
+    <a href="https://github.com/MonoBL" target="_blank" rel="noopener">Nuno Mendes</a>, from
+    scratch, taking <a href="https://github.com/ashemag/human-atlas" target="_blank" rel="noopener">ashemag/human-atlas</a>
+    (MIT) as the reference for the model, the palette and the lighting, and going well past it:
+    four body regions with sub-regions and a side switch, ten muscular layers peeled by real
+    occlusion, joint shortcuts, a contents screen of plates, transparency, pins, saved views,
+    anatomical cuts, European Portuguese throughout, and an offline mode for a tablet. Source:
+    <a href="https://github.com/MonoBL/anatomy-3d" target="_blank" rel="noopener">MonoBL/anatomy-3d</a>.</p>
     <p class="lic">Atlas data built ${state.index.generated?.slice(0, 16).replace('T', ' ')} UTC.<br />
     BodyParts3D, © The Database Center for Life Science, licensed under
     <a href="https://creativecommons.org/licenses/by-sa/2.1/jp/deed.en" target="_blank" rel="noopener">CC BY-SA 2.1 Japan</a>.
@@ -154,6 +162,15 @@ function renderAbout() {
     ${n.format(cov.wikiPt ?? 0)} em português. ${n.format(cov.ptNames ?? 0)} peças têm nome
     português verificado; as restantes mantêm o nome anatómico inglês em vez de uma tradução
     automática.</p>
+    <p><strong>Quem fez isto.</strong> Desenvolvido de raiz por
+    <a href="https://github.com/MonoBL" target="_blank" rel="noopener">Nuno Mendes</a>, tendo
+    como referência o <a href="https://github.com/ashemag/human-atlas" target="_blank" rel="noopener">ashemag/human-atlas</a>
+    (MIT) para o modelo, a paleta e a iluminação, e indo bastante além dele: quatro regiões do
+    corpo com sub-regiões e escolha de lado, dez camadas musculares descascadas por oclusão
+    real, atalhos para as articulações, um ecrã de conteúdos com pranchas, transparência,
+    marcadores, vistas guardadas, cortes anatómicos, português europeu em todo o interface e
+    modo offline para tablet. Código:
+    <a href="https://github.com/MonoBL/anatomy-3d" target="_blank" rel="noopener">MonoBL/anatomy-3d</a>.</p>
     <p class="lic">Dados do atlas gerados a ${state.index.generated?.slice(0, 16).replace('T', ' ')} UTC.<br />
     BodyParts3D, © The Database Center for Life Science, sob licença
     <a href="https://creativecommons.org/licenses/by-sa/2.1/jp/deed.en" target="_blank" rel="noopener">CC BY-SA 2.1 Japão</a>.
