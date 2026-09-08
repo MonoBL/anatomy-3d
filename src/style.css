@@ -708,6 +708,9 @@ button { cursor: pointer; border: 0; background: none; }
   max-height: calc(100vh - 300px - var(--sab));
   overflow-y: auto; overflow-x: hidden; padding-right: 2px;
   scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 .leftrail::-webkit-scrollbar { width: 6px; }
 .leftrail::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
@@ -751,6 +754,10 @@ button { cursor: pointer; border: 0; background: none; }
   backdrop-filter: none;
   background: var(--card-solid);
   overflow: hidden;
+  /* Without this the rail's max-height shrinks the panels instead of
+     overflowing, and `overflow: hidden` then eats the rows the rail should
+     have scrolled to. */
+  flex: 0 0 auto;
 }
 .syslist, .marklist {
   max-height: none;
