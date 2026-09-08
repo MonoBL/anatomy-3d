@@ -1,7 +1,9 @@
 # Handoff — Human Atlas
 
-State of the project as of 2026-09-08 (second pass: regions, layers, contents, tools). Written so the next session can pick up without
-re-deriving anything. Repo: <https://github.com/MonoBL/anatomy-3d> (public, CC BY-SA 2.1 JP).
+State of the project as of 2026-09-08, after the second pass (regions, layers, contents,
+tools, deploy). Written so the next session can pick up without re-deriving anything.
+Repo <https://github.com/MonoBL/anatomy-3d>, live at <https://anatomia-ochre.vercel.app>
+(public, CC BY-SA 2.1 JP).
 
 ## What it is
 
@@ -53,6 +55,8 @@ viewer without touching the pipeline.
 | `src/bookmarks.js` | saved views (localStorage) |
 | `src/offline.js` | service-worker registration and the offline atlas download |
 | `src/i18n.js` | UI strings EN / PT-PT, language persistence |
+| `tools/pt-terms.mjs` | Portuguese anatomical vocabulary: nouns with gender, adjectives, compounds |
+| `tools/pt-derive.mjs` | derives a Portuguese name from the English one, mechanically |
 
 ## Data pipeline, as it stands
 
@@ -71,11 +75,13 @@ viewer without touching the pipeline.
    **principal axis** and half-extent (PCA power iteration), an **elongation** ratio, and the
    **contralateral partner**, matched on the name minus its side word (433 pairs).
 6. Names and paragraphs: Wikidata P1402 gives article titles and labels in both languages;
-   Wikipedia gives the lead sections. A Portuguese name is only used when the source names the
-   same structure, differing by side at most — in which case gender agreement is applied
-   (*Músculo grácil* -> *direito*). Coverage: 790 PT names, 1434 EN and 1213 PT paragraphs.
-   Everything else falls back to a sentence derived from the FMA hierarchy, then to the system
-   overview. Nothing is machine-translated.
+   Wikipedia gives the lead sections. A verified Portuguese name is only used when the source
+   names the same structure, differing by side at most — in which case gender agreement is
+   applied (*Músculo grácil* -> *direito*). That covers 790 structures; the other 1,444 get a
+   name derived mechanically from the English (`tools/pt-derive.mjs`) and are flagged `dn` in
+   the text file so the panel can say the name is unverified. Paragraphs: 1434 EN and 1213 PT
+   from Wikipedia, then a sentence derived from the FMA hierarchy, then the system overview.
+   Nothing is machine-translated.
 7. Output: one gzipped binary per system plus `index.json` and `text-{en,pt}.json.gz`, 26 MB
    total (the reference ships 33 MB).
 
@@ -176,25 +182,62 @@ Do not re-learn these:
 - **Structures must be large to belong to two regions.** In the anatomical position the hands
   hang beside the hips, so nearest-bone voting put small pelvic structures in the arm.
 
-## Known gaps / candidates for next
+## Where it stands
 
-- **Deployed** at <https://anatomia-ochre.vercel.app> — Vercel, static, `vercel --prod --yes`
-  from the repo root (the CLI's project link lives in `.vercel/`, gitignored). Nothing is
-  connected to GitHub, so a deploy is that one command.
-- **No peripheral nerves in the source.** All 139 BodyParts3D nervous meshes are cranial, so
-  the limbs have no nerve plates. Veins are almost all trunk. Dataset, not pipeline.
-- Sub-region cards (a "Hand · bones" plate) are not in the contents yet; the data is there.
+Live at <https://anatomia-ochre.vercel.app> — Vercel, static, `vercel --prod --yes` from the
+repo root (the CLI's project link lives in `.vercel/`, gitignored). Nothing is connected to
+GitHub, so a deploy is that one command. The (i) panel credits the work and links both
+repositories; the button beside it explains how to put the atlas on an iPad's home screen and
+store it for offline use.
+
+Everything planned in `PLAN.md` is done: regions and sub-regions with a side switch, ten
+muscular layers peeled by occlusion, the working toolbar with thirty steps of undo, the
+contents screen with rendered thumbnails (including a "Closer in" group per sub-region),
+the views sheet with joint landmarks, transparency, pins, saved views, hide-interface,
+Portuguese for every structure, offline storage, and the deploy.
+
+## Open decisions, and what each needs
+
+These are the ones that need something from outside the repo, so they are written down
+rather than half-started.
+
+**1b — verified Portuguese names.** All 2,234 structures now have a Portuguese name: 790
+verified against Wikidata/Wikipedia, 1,444 derived mechanically by `tools/pt-derive.mjs` from
+the vocabulary in `tools/pt-terms.mjs`, and the panel marks a derived name as unverified. To
+promote derived names to verified, the missing ingredient is a source: the Portuguese
+Terminologia Anatómica as data (CSV/XLSX), or a faculty glossary. With FMA ids or English
+names in one column, the mapping is a small script and the `dn` flag disappears for whatever
+it covers. Reviewing the derived names by hand would work too — `npm run report:regions` is
+the model for a report that lists them.
+
+**2 — peripheral nerves.** BodyParts3D's 139 nervous meshes are all cranial: there is no
+brachial plexus, no sciatic nerve, nothing in the limbs. No pipeline change can conjure them.
+The realistic source is [Z-Anatomy](https://github.com/LluisV/Z-Anatomy) (CC BY-SA), which
+does model the peripheral nervous system, but it is a Blender project with its own naming, so
+it means a second importer: meshes to our binary format, its labels mapped onto FMA where they
+overlap, and a decision about whether the two models sit side by side (they are different
+bodies and will not align exactly). Veins are similarly trunk-heavy in BP3D, and would benefit
+from the same import.
+
+**5 — the female atlas.** Only the male BP3D atlas is built. The reference implementation has
+a female path in its converter, so the route is known: fetch the female dataset (~460 MB of
+source), run the same pipeline, and ship a second set of binaries. What needs deciding is
+whether it becomes a switch inside one deployment (roughly +27 MB, so the offline download
+doubles) or a separate build; the regions, layers and landmarks all recompute from geometry,
+so nothing else in the pipeline needs to know about it.
+
+## Smaller things left
+
 - The deepest layer of a region is a bucket: muscles walled in by bone are ranked by how much
   covers them rather than peeled in turn.
 - Muscle fibres do not fan. Our per-part direction is a single PCA axis; the commercial
   Anatomy 3D Atlas app fans them via real UV textures, which BodyParts3D does not ship.
-- 1,444 structures have no verified Portuguese name and fall back to English, flagged in the
-  panel. Raising that needs a curated anatomical dictionary.
+- Cuts shade their interior as flat mass rather than filling a true cap. Stencil caps were
+  measured out: six full-scene passes a frame over 2.4 M triangles is not something an iPad
+  can spare.
 - Lymphatic has 3 parts and endocrine 4 — the source dataset is thin there, not a bug.
-- No cross-section caps: a cut shows the interior shell, not a filled face. Real caps need a
-  stencil pass.
-- Only the male BP3D atlas. The reference also has a female HRA path in its converter.
-- No tests. `npm run verify:atlas` and `npm run report:systems` are the current safety net.
+- No tests. `npm run verify:atlas`, `npm run report:regions` and `npm run check:i18n` are the
+  current safety net.
 
 ## Working preferences captured
 
