@@ -89,9 +89,11 @@ varying float vState, vVisible, vAlpha;
 
 // Structures grouped into one system share a material, as they do upstream;
 // the only per-fragment work left is the selection tint.
+// Amber for the selection, as in the reference app: on muscle and bone alike
+// it stays legible, where the cooler tint used to sink into the red.
 const PART_FRAG_ALBEDO = /* glsl */`
-  if (vState > 2.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.95, 0.55, 0.15), 0.55);
-  else if (vState > 1.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.85, 0.78), 0.75);
+  if (vState > 2.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.72, 0.74), 0.7);
+  else if (vState > 1.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.40, 0.03), 0.92);
   else if (vState > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), 0.22);
 `;
 

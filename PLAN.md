@@ -80,10 +80,12 @@ Validation: a `npm run report:regions` table, every region non-empty, no part un
   25% of its surface able to see out is in the current layer; remove that layer and see what
   became visible. Because each ray remembers its occluders, the rounds are set arithmetic,
   not new ray casts. Muscles walled in by bone are ranked by how much covers them.
-- Ranked per region: peeling the arm does not peel the back. Result: upper limb 3 layers,
-  lower limb 3, trunk 6, head 6. Spot-checked — deltoid, biceps, brachioradialis and flexor
-  carpi radialis at layer 1; brachialis, supraspinatus, soleus, vastus intermedius at 2;
-  flexor digitorum profundus and gluteus minimus at 3.
+- Ranked per region: peeling the arm does not peel the back. Each round takes the muscles
+  that are *most* exposed among those left, not everything over a fixed bar — a fixed bar
+  peeled half a limb in one press, where an atlas turns a page at a time. Ten layers per
+  region, which is the granularity of the reference app. Spot-checked on the arm: deltoid and
+  brachioradialis at 1, flexor carpi radialis 4, biceps 5, brachialis 6, coracobrachialis 7,
+  flexor digitorum superficialis 8, profundus 9, pronator quadratus and supraspinatus 10.
 - The ray pass costs ~35 s, so the samples are cached in `data/layer-samples.json` (gitignored,
   keyed by a signature of the geometry) and the thresholds can be retuned in seconds.
 - Still to do: the same treatment for `skeletal` vs `connective` ("ligaments and bones"),
@@ -208,6 +210,10 @@ Phases 1 and 3 are the data-heavy ones and carry the risk; 2, 4-8 are mostly UI.
 
 ## 7. Decisions taken (2026-09-08)
 
+- **One limb at a time**: entering the upper or lower limb selects a side, so the view is a
+  plate of one arm or one leg as in the reference app. Both sides stay one tap away, and the
+  contents cards render whatever the card will open.
+- **Selection colour**: amber, as in the reference. The cool tint sank into the muscle red.
 - **Regions**: 4 tabs, as the reference — Head / Trunk / Upper limb / Lower limb. Neck folds
   into Head-and-neck, pelvis into Trunk; both stay available as sub-regions.
 - **Theme**: stays light. The screenshots are dark, the look does not change.

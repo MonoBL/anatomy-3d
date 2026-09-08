@@ -235,7 +235,7 @@ function buildSystemList() {
 }
 
 // ------------------------------------------------------------- contents
-const THUMB_VERSION = 'v4';
+const THUMB_VERSION = 'v5';
 function openContents(on = true) {
   $('#contents').hidden = !on;
   if (!on) return;
@@ -299,7 +299,7 @@ function queueThumbs(region) {
 async function showThumb(el, region) {
   const preset = PRESETS.find(p => p.id === el.dataset.thumb);
   if (!preset || !state.loaded.size) return;
-  const side = state.side ?? 'both';
+  const side = defaultSide(region, state.side) ?? 'both';
   // The key carries a renderer version as well as the atlas build: a change to
   // how thumbnails are drawn has to invalidate the ones already stored.
   const key = `${THUMB_VERSION}|${state.index.generated}|${region ?? 'all'}|${side}|${preset.id}`;
@@ -307,9 +307,10 @@ async function showThumb(el, region) {
   if (!blob) {
     // The viewer needs the systems loaded before it can draw them.
     if (!preset.systems.every(id => state.loaded.has(id))) return;
-    const box = boxFor(region, null, state.side);
+    const cardSide = defaultSide(region, state.side);
+    const box = boxFor(region, null, cardSide);
     const canvas = state.viewer.renderThumbnail({
-      systems: preset.systems, box, filter: { region, side: state.side },
+      systems: preset.systems, box, filter: { region, side: cardSide },
     });
     if (!canvas) return;
     blob = await new Promise(res => canvas.toBlob(res, 'image/webp', 0.9));
@@ -329,6 +330,7 @@ function applyPreset(preset, region) {
   state.preset = preset.id;
   state.region = region;
   state.sub = null;
+  state.side = defaultSide(region, state.side);
   const wanted = new Set(preset.systems);
   for (const s of state.index.systems) setSystem(s.id, wanted.has(s.id));
   state.tab = null;
@@ -763,6 +765,14 @@ function bindToolbar() {
 }
 
 // ---------------------------------------------------------------- regions
+// The limbs come in pairs, and a plate of one arm is what an atlas shows, so
+// entering a limb region picks a side. Both sides stay one tap away.
+const PAIRED_REGIONS = new Set(['upperLimb', 'lowerLimb']);
+
+function defaultSide(region, current) {
+  if (!PAIRED_REGIONS.has(region)) return current;
+  return current ?? 'l';
+}
 function buildRegionBar() {
   const bar = $('#regionBar');
   const counts = new Map();
@@ -790,6 +800,7 @@ function setRegion(id, { record = true } = {}) {
   if (record && id !== state.region) pushUndo();
   state.region = id;
   state.sub = null;                      // a new region starts on the whole of it
+  state.side = defaultSide(id, state.side);
   applyFilter({ frame: true });
 }
 

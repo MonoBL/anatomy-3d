@@ -15,7 +15,7 @@ import { ROOT } from './lib-bp3d.mjs';
 // this mesh density, which is the sweet spot between traversal and tests.
 const CELL = 0.02;
 const SAMPLES = 110;          // rays per muscle
-const MAX_LAYERS = 6;
+const MAX_LAYERS = 10;
 
 // Everything solid that is not a muscle: it hides what is behind it but is
 // never itself peeled. Skin is excluded (looking "from outside" means through
@@ -115,29 +115,33 @@ class TriGrid {
 // the definition an atlas plate uses, and it only needs the ray casts once —
 // each sample remembers *which* muscles cover it, so later rounds are set
 // arithmetic.
-// A muscle counts as exposed once this share of its surface samples can see
-// out. A couple of clear rays is not enough: almost anything has a gap
-// somewhere, which collapsed every region into a single layer.
-const EXPOSED_SHARE = 0.25;
+// Each round takes the muscles that are *most* exposed among those left, not
+// everything over a fixed bar: a fixed bar peels half a limb in one press,
+// where an atlas turns a page at a time. A muscle joins the round when it can
+// see out over this fraction of the best-exposed one still there...
+const RELATIVE_SHARE = 0.82;
+// ...and never on a couple of stray rays through a gap.
+const FLOOR_SHARE = 0.04;
 
 function peelOrder(group, ids, maxLayers) {
   const remaining = new Set(ids);
   const layerOf = new Map();
   let layer = 0;
   while (remaining.size) {
-    const exposed = [];
+    const shares = [];
     for (const p of group) {
       if (!remaining.has(p.id)) continue;
       let clear = 0;
-      const need = Math.max(2, Math.ceil(p.samples.length * EXPOSED_SHARE));
       for (const list of p.samples) {
         // Occluders outside this region are treated as absent: a region view
         // does not draw them, so they cannot hide anything in it.
         if (list.every(o => o !== BLOCKED && !remaining.has(o))) clear++;
-        if (clear >= need) break;
       }
-      if (clear >= need) exposed.push(p);
+      shares.push([p, p.samples.length ? clear / p.samples.length : 0]);
     }
+    const best = Math.max(0, ...shares.map(([, share]) => share));
+    const bar = Math.max(FLOOR_SHARE, best * RELATIVE_SHARE);
+    const exposed = shares.filter(([, share]) => share >= bar).map(([p]) => p);
     // Nothing exposed means what is left is walled in by bone or by the
     // structures around it (deep facial and pharyngeal muscles, mostly). Rank
     // those by how much they have over them rather than dumping them together.
