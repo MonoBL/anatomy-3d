@@ -2,6 +2,8 @@ import { loadIndex, loadSystem, loadText } from './atlas.js';
 import { Viewer, ANATOMICAL_COLORS } from './viewer.js';
 import { makeT, applyStatic, initialLang, rememberLang, numberFormat, LANGS } from './i18n.js';
 import { registerServiceWorker } from './offline.js';
+import { PRESETS, PRESET_GROUPS, presetsFor, presetSize } from './presets.js';
+import { getThumb, putThumb, pruneThumbs } from './thumbs.js';
 
 const $ = sel => document.querySelector(sel);
 const FMA_URL = id => `https://bioportal.bioontology.org/ontologies/FMA?p=classes&conceptid=http%3A%2F%2Fpurl.org%2Fsig%2Font%2Ffma%2F${id.toLowerCase()}`;
@@ -27,6 +29,7 @@ const state = {
   tab: 'all', pane: 'A', cursor: 0, results: [],
   region: null, sub: null, side: null,
   multiselect: false, undo: [],
+  contentsRegion: null, preset: null,
   // The rail starts out of the way on a tablet, open on a desktop.
   rail: matchMedia('(min-width: 1100px)').matches && !matchMedia('(hover: none)').matches,
   lang: initialLang(), t: null, nf: null, text: {},
@@ -79,6 +82,15 @@ async function init() {
   tick();
   state.text[state.lang] = await loadText(state.lang);
   await loadAll();
+  // Cards opened mid-load have placeholders for systems that were not there
+  // yet; now that everything is in, draw them.
+  if (!$('#contents').hidden) buildContents();
+  pruneThumbs(`${THUMB_VERSION}|${state.index.generated}`);
+  // First visit opens on the contents, as the reference app does; after that
+  // the atlas opens where it is quicker to work.
+  try {
+    if (!localStorage.getItem('atlas.seenContents')) openContents(true);
+  } catch { /* private mode */ }
 }
 
 // --------------------------------------------------------------- language
@@ -101,6 +113,7 @@ async function setLang(lang, { initial = false } = {}) {
   buildRegionBar();
   buildSubBar();
   buildCutRows();
+  if (!$('#contents').hidden) buildContents();
   updateVisibleCount();
   if (state.viewer.selected >= 0) selectPart(state.viewer.selected);
   if (state.results.length) runSearch();
@@ -214,6 +227,110 @@ function buildSystemList() {
     }
   }
   updateVisibleCount();
+}
+
+// ------------------------------------------------------------- contents
+const THUMB_VERSION = 'v3';
+function openContents(on = true) {
+  $('#contents').hidden = !on;
+  if (!on) return;
+  state.contentsRegion = state.region;
+  buildContents();
+  try { localStorage.setItem('atlas.seenContents', '1'); } catch { /* private mode */ }
+}
+
+function buildContents() {
+  const name = s => (state.lang === 'pt' && s.labelPt ? s.labelPt : s.label);
+  const regions = $('#contentsRegions');
+  regions.innerHTML = [
+    { id: '', label: state.t('region.all') },
+    ...state.index.regions.map(r => ({ id: r.id, label: name(r) })),
+  ].map(r => `<button data-region="${r.id}" class="${(state.contentsRegion ?? '') === r.id ? 'is-active' : ''}">${r.label}</button>`).join('');
+  regions.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    state.contentsRegion = b.dataset.region || null;
+    buildContents();
+  }));
+
+  const region = state.contentsRegion;
+  const available = presetsFor(state.index, region);
+  const body = $('#contentsBody');
+  body.innerHTML = PRESET_GROUPS.map(group => {
+    const cards = available.filter(({ preset }) => preset.group === group.id);
+    if (!cards.length) return '';
+    return `<div class="contents-group"><h3>${name(group)}</h3><div class="cardgrid">
+      ${cards.map(({ preset }) => {
+        const n = presetSize(state.index, region, preset);
+        return `<button class="card" data-preset="${preset.id}">
+          <span class="thumb is-empty" data-thumb="${preset.id}">${state.t('contents.rendering')}</span>
+          <span class="cap"><b>${name(preset)}</b><span>${state.nf.format(n)} ${state.t('contents.parts')}</span></span>
+        </button>`;
+      }).join('')}
+    </div></div>`;
+  }).join('');
+
+  body.querySelectorAll('.card').forEach(card => card.addEventListener('click', () => {
+    const preset = PRESETS.find(p => p.id === card.dataset.preset);
+    if (preset) applyPreset(preset, region);
+  }));
+  queueThumbs(region);
+}
+
+// Thumbnails are rendered by the viewer on demand, cached in IndexedDB, and
+// only for the cards actually on screen: a full grid costs a couple of frames.
+function queueThumbs(region) {
+  const pending = [...$('#contentsBody').querySelectorAll('[data-thumb]')];
+  const io = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      io.unobserve(entry.target);
+      showThumb(entry.target, region);
+    }
+  }, { root: $('#contentsBody'), rootMargin: '200px' });
+  for (const el of pending) io.observe(el);
+  state.thumbObserver?.disconnect();
+  state.thumbObserver = io;
+}
+
+async function showThumb(el, region) {
+  const preset = PRESETS.find(p => p.id === el.dataset.thumb);
+  if (!preset || !state.loaded.size) return;
+  const side = state.side ?? 'both';
+  // The key carries a renderer version as well as the atlas build: a change to
+  // how thumbnails are drawn has to invalidate the ones already stored.
+  const key = `${THUMB_VERSION}|${state.index.generated}|${region ?? 'all'}|${side}|${preset.id}`;
+  let blob = await getThumb(key);
+  if (!blob) {
+    // The viewer needs the systems loaded before it can draw them.
+    if (!preset.systems.every(id => state.loaded.has(id))) return;
+    const box = boxFor(region, null, state.side);
+    const canvas = state.viewer.renderThumbnail({
+      systems: preset.systems, box, filter: { region, side: state.side },
+    });
+    if (!canvas) return;
+    blob = await new Promise(res => canvas.toBlob(res, 'image/webp', 0.9));
+    if (blob) putThumb(key, blob);
+  }
+  if (!blob || el.dataset.thumb !== preset.id) return;
+  const img = document.createElement('img');
+  img.className = 'thumb';
+  img.alt = '';
+  img.src = URL.createObjectURL(blob);
+  img.addEventListener('load', () => URL.revokeObjectURL(img.src), { once: true });
+  el.replaceWith(img);
+}
+
+function applyPreset(preset, region) {
+  pushUndo();
+  state.preset = preset.id;
+  state.region = region;
+  state.sub = null;
+  const wanted = new Set(preset.systems);
+  for (const s of state.index.systems) setSystem(s.id, wanted.has(s.id));
+  state.tab = null;
+  syncTabs();
+  state.viewer.setPeel(0);
+  applyFilter({ frame: true });
+  openContents(false);
 }
 
 // ---------------------------------------------------------------- tools
@@ -463,15 +580,17 @@ function applyFilter({ frame = false } = {}) {
   syncToolbar();
 }
 
-// The box the current filter should trim and frame to: the sub-region if one
-// is chosen, otherwise the whole region, on one side if a side is chosen.
-function filterBox() {
-  const source = state.sub
-    ? state.index.subregions.find(s => s.id === state.sub)
-    : state.index.regions.find(r => r.id === state.region);
+// The box a filter should trim and frame to: the sub-region if one is chosen,
+// otherwise the whole region, on one side if a side is chosen.
+function boxFor(region, sub, side) {
+  const source = sub
+    ? state.index.subregions.find(s => s.id === sub)
+    : state.index.regions.find(r => r.id === region);
   if (!source) return null;
-  return (state.side && source.boxSide?.[state.side]) || source.box || null;
+  return (side && source.boxSide?.[side]) || source.box || null;
 }
+
+const filterBox = () => boxFor(state.region, state.sub, state.side);
 
 // The region a part is shown in, for the detail panel.
 function regionLabel(p) {
@@ -723,6 +842,8 @@ function bindUI() {
     syncTabs();
   });
   $('#railToggle').addEventListener('click', () => setRail(!state.rail));
+  $('#contentsBtn').addEventListener('click', () => openContents(true));
+  $('#contentsClose').addEventListener('click', () => openContents(false));
   $('#cutClear').addEventListener('click', clearCuts);
   $('#resetView').addEventListener('click', resetView);
 
@@ -865,7 +986,10 @@ function bindUI() {
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
     if (e.key === '/') { e.preventDefault(); input.focus(); }
-    else if (e.key === 'Escape') { selectPart(-1); $('#aboutModal').hidden = true; }
+    else if (e.key === 'Escape') {
+      if (!$('#contents').hidden) openContents(false);
+      else { selectPart(-1); $('#aboutModal').hidden = true; }
+    }
     else if (e.key === 'z' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); undo(); }
     else if (e.key === 'h' && viewer.selection.size) hideSelection();
     else if (e.key === 'm') setMultiselect(!state.multiselect);

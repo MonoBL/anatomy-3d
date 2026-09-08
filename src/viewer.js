@@ -298,19 +298,22 @@ export class Viewer {
     this.region = region ?? null;
     this.sub = sub ?? null;
     this.side = side ?? null;
-    const any = this.region || this.sub || this.side;
-    this.regionParts = null;
-    if (any) {
-      this.regionParts = new Set();
-      for (const p of this.parts) {
-        const inRegion = !this.region || p.rg === this.region || p.rgw?.[this.region];
-        const inSub = !this.sub || p.sr === this.sub || p.srw?.[this.sub];
-        // A midline structure has no side and stays in either one.
-        const onSide = !this.side || !p.sd || p.sd === this.side;
-        if (inRegion && inSub && onSide) this.regionParts.add(p.i);
-      }
-    }
+    this.regionParts = this.filterSet(this);
     this.applyVisibility();
+  }
+
+  // The ids a region / sub-region / side filter admits, or null for all of it.
+  filterSet({ region = null, sub = null, side = null }) {
+    if (!region && !sub && !side) return null;
+    const set = new Set();
+    for (const p of this.parts) {
+      const inRegion = !region || p.rg === region || p.rgw?.[region];
+      const inSub = !sub || p.sr === sub || p.srw?.[sub];
+      // A midline structure has no side and stays in either one.
+      const onSide = !side || !p.sd || p.sd === side;
+      if (inRegion && inSub && onSide) set.add(p.i);
+    }
+    return set;
   }
 
   setRegionFilter(regionId) {
@@ -595,6 +598,106 @@ export class Viewer {
       targetFrom: this.controls.target.clone(), targetTo: target,
       t: 0, duration,
     };
+  }
+
+  // ------------------------------------------------------- thumbnails
+  // Renders one card image for the contents screen: a given set of systems,
+  // trimmed and framed to a box, on the page's own background. Everything it
+  // touches is restored, so it can run between two normal frames.
+  renderThumbnail({ systems, box, filter = null, size = 256, dir = [0.34, 0.06, 1] }) {
+    if (!this.meshes.size) return null;
+    if (!this.thumbTarget || this.thumbTarget.width !== size) {
+      this.thumbTarget?.dispose();
+      this.thumbTarget = new THREE.WebGLRenderTarget(size, size, { depthBuffer: true });
+      // A render target holds linear values unless told otherwise; without
+      // this the thumbnails come out of readRenderTargetPixels unconverted
+      // and every colour reads far too saturated.
+      this.thumbTarget.texture.colorSpace = THREE.SRGBColorSpace;
+      this.thumbPixels = new Uint8Array(size * size * 4);
+      this.thumbCamera = new THREE.PerspectiveCamera(30, 1, 0.005, 100);
+    }
+    const wanted = new Set(systems);
+    const savedVis = this.partData.slice();
+    const savedMesh = new Map([...this.meshes].map(([id, m]) => [id, m.visible]));
+    const savedClip = {
+      on: this.uniforms.uClipOn.value,
+      min: this.uniforms.uClipMin.value.clone(),
+      max: this.uniforms.uClipMax.value.clone(),
+    };
+    const stageWasVisible = this.stage ? this.stage.visible : false;
+
+    // Only the parts this card is about, inside the box it frames.
+    const allowed = filter ? this.filterSet(filter) : this.regionParts;
+    for (const p of this.parts) {
+      const on = wanted.has(p.s) && (!allowed || allowed.has(p.i));
+      this.partData[p.i * 4 + 3] = on ? 1 : 0;
+    }
+    this.partTex.needsUpdate = true;
+    this.uniforms.uPartTex.value = this.partTex;
+    for (const [id, mesh] of this.meshes) mesh.visible = wanted.has(id);
+    if (this.stage) this.stage.visible = false;
+    if (box) this.setClip(box);
+
+    // Frame what is actually on the card, not the region box: a limb box is
+    // padded and much wider than the limb, which left the card mostly empty.
+    const bounds = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+    for (const p of this.parts) {
+      if (this.partData[p.i * 4 + 3] < 0.5) continue;
+      for (let a = 0; a < 3; a++) {
+        bounds.min[a] = Math.min(bounds.min[a], p.c[a] - p.r);
+        bounds.max[a] = Math.max(bounds.max[a], p.c[a] + p.r);
+      }
+    }
+    if (box) {
+      for (let a = 0; a < 3; a++) {
+        bounds.min[a] = Math.max(bounds.min[a], box.min[a]);
+        bounds.max[a] = Math.min(bounds.max[a], box.max[a]);
+      }
+    }
+    const fit = Number.isFinite(bounds.min[0]) && bounds.max[0] > bounds.min[0]
+      ? bounds
+      : (box ?? { min: this.index.bounds.min, max: this.index.bounds.max });
+
+    const cam = this.thumbCamera;
+    const target = new THREE.Vector3(...[0, 1, 2].map(a => (fit.min[a] + fit.max[a]) / 2));
+    const half = [0, 1, 2].map(a => (fit.max[a] - fit.min[a]) / 2);
+    const vFov = THREE.MathUtils.degToRad(cam.fov);
+    const dist = Math.max(half[1], half[0]) * 1.04 / Math.tan(vFov / 2) + half[2];
+    cam.position.copy(target).add(new THREE.Vector3(...dir).setLength(dist));
+    cam.lookAt(target);
+    cam.updateProjectionMatrix();
+
+    this.renderer.setScissorTest(false);
+    this.renderer.setRenderTarget(this.thumbTarget);
+    // A bound target uses its own viewport unless one is set after binding.
+    this.renderer.setViewport(0, 0, size / this.renderer.getPixelRatio(), size / this.renderer.getPixelRatio());
+    this.renderer.clear();
+    this.renderer.render(this.scene, cam);
+    this.renderer.readRenderTargetPixels(this.thumbTarget, 0, 0, size, size, this.thumbPixels);
+    this.renderer.setRenderTarget(null);
+
+    // Restore everything.
+    this.partData.set(savedVis);
+    this.partTex.needsUpdate = true;
+    for (const [id, mesh] of this.meshes) mesh.visible = savedMesh.get(id) !== false;
+    if (this.stage) this.stage.visible = stageWasVisible;
+    this.uniforms.uClipOn.value = savedClip.on;
+    this.uniforms.uClipMin.value.copy(savedClip.min);
+    this.uniforms.uClipMax.value.copy(savedClip.max);
+    this.usePane('A');
+    this.onResize();
+
+    // WebGL reads bottom-up; the canvas wants top-down.
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(size, size);
+    for (let y = 0; y < size; y++) {
+      const src = (size - 1 - y) * size * 4;
+      img.data.set(this.thumbPixels.subarray(src, src + size * 4), y * size * 4);
+    }
+    ctx.putImageData(img, 0, 0);
+    return canvas;
   }
 
   // Frame an axis-aligned world box, used by the region views.

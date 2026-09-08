@@ -95,12 +95,22 @@ cervical spine, lumbar spine, TMJ, and the hand/foot centres — per side. Each 
 plus a radius, enough for `CENTER`-style framing. Table in `tools/landmarks.json`,
 resolved to coordinates at build time.
 
-### 2.4 Presets
-A declarative list (`tools/presets.json`): id, region, label EN/PT, the systems it turns on,
-optional layer cap, optional "bones as context, greyed" flag. Mirrors the reference cards:
-*Muscles and bones*, *Bones*, *Ligaments and bones*, *Arteries and veins*, *Veins*,
-*Arteries*, *Nerves*, *Nerves and muscles*, *Lymphatics*, plus organ presets for the trunk
-and head. Everything here is data, no code per card.
+### 2.4 Presets — done, `src/presets.js`
+A declarative list (client-side, no atlas rebuild needed): id, group, label EN/PT, the systems
+the card turns on, and the system it is *about*. Which cards a region gets is decided at
+runtime from the index, so a region with fewer than three parts of a system has no card for
+it. Sixteen presets across musculoskeletal, cardiovascular, nervous, lymphatic, organ and
+surface groups.
+
+Worth knowing about the source data: BodyParts3D's 139 nervous meshes are all cranial, so
+the limbs have no nerve cards — there are no peripheral nerve meshes to show. Veins are
+likewise almost all trunk. This is the dataset, not the pipeline.
+
+Thumbnails are rendered by the viewer itself into a render target and cached in IndexedDB,
+keyed by a renderer version plus the atlas build, so nothing is shipped and nothing goes
+stale. Two things were wrong first time: a render target holds linear colour unless its
+texture is marked sRGB (every card came out lurid), and framing on the region box left the
+cards mostly empty — they frame the visible content instead.
 
 ---
 
@@ -166,7 +176,7 @@ and head. Everything here is data, no code per card.
 | 1 | Regions | 2.1 + region views + region strip in the UI | **done** — 4 regions, 12 sub-regions, region clip box |
 | 2 | Toolbar | new bottom toolbar, hide/multiselect/undo/reset/centre | **done** — plus a 30-step undo stack |
 | 3 | Layers | 2.2 + layer stepper | **done** — peel by occlusion; fade still to do |
-| 4 | Presets | 2.4 + contents screen + thumbnails | cards for all regions and systems |
+| 4 | Presets | 2.4 + contents screen + thumbnails | **done** — cards per region, thumbnails cached in IndexedDB |
 | 5 | Views | 2.3 + views sheet + joint shortcuts | ANT/POS/LAT/MED/SUP/INF + joints per region |
 | 6 | Transparency | second pass + pick-through | ghosted bones with muscles visible |
 | 7 | Pins & bookmarks | labels, leader lines, saved states | a labelled screenshot for revision |
