@@ -333,6 +333,58 @@ function applyPreset(preset, region) {
   openContents(false);
 }
 
+// ----------------------------------------------------------------- views
+function toggleViewSheet(on = $('#viewSheet').hidden) {
+  $('#viewSheet').hidden = !on;
+  document.querySelector('.toolbar button[data-tool="views"]')?.classList.toggle('is-active', on);
+  if (on) buildJointChips();
+}
+
+// Which side "lateral" and "medial" mean: the side filter if there is one,
+// otherwise the side of whatever is selected, and failing that the left.
+function currentSide() {
+  if (state.side) return state.side;
+  const p = state.viewer.selected >= 0 ? state.viewer.byId.get(state.viewer.selected) : null;
+  return p?.sd ?? 'l';
+}
+
+function goToDir(dir) {
+  const side = currentSide();
+  // A camera at +x looks at the body's left, so lateral for a left structure
+  // is the left view and medial is the right one.
+  const key = dir === 'lateral' ? (side === 'l' ? 'L' : 'R')
+    : dir === 'medial' ? (side === 'l' ? 'R' : 'L')
+    : dir;
+  state.viewer.goToView(key, 620, filterBox());
+  state.markView?.(key);
+}
+
+function buildJointChips() {
+  const row = $('#viewJointsRow');
+  const wrap = $('#viewJoints');
+  const side = currentSide();
+  const name = j => (state.lang === 'pt' && j.labelPt ? j.labelPt : j.label);
+  // One chip per joint, not per joint and side: the side comes from the view.
+  const seen = new Set();
+  const joints = (state.index.joints ?? []).filter(j => {
+    if (state.region && j.region !== state.region) return false;
+    if (j.side && j.side !== side) return false;
+    if (seen.has(j.id)) return false;
+    seen.add(j.id);
+    return true;
+  });
+  row.hidden = !joints.length;
+  wrap.innerHTML = joints.map(j =>
+    `<button class="joint" data-joint="${j.id}">${name(j)}</button>`).join('');
+  wrap.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    const joint = joints.find(j => j.id === b.dataset.joint);
+    if (joint) {
+      state.viewer.focusJoint(joint);
+      state.markView?.(null);
+    }
+  }));
+}
+
 // ---------------------------------------------------------------- tools
 const UNDO_DEPTH = 30;
 
@@ -419,6 +471,7 @@ function resetAll() {
   buildSubBar();          // the strip only exists while a region is active
   for (const st of state.cuts.values()) { st.on = false; st.flip = false; st.at = 0.5; }
   toggleExplodePanel(false);
+  toggleViewSheet(false);
   $('#explode').value = 0;
   viewer.setSpread(0);
   applyTab('all');
@@ -467,6 +520,7 @@ function syncToolbar() {
   set('hide', { disabled: !has });
   set('undo', { disabled: !state.undo.length });
   set('explode', { on: !$('#explodePanel').hidden });
+  set('views', { on: !$('#viewSheet').hidden });
   set('reset');
   const max = viewer.maxPeel();
   $('#layerVal').textContent = `${viewer.peel + 1} / ${max + 1}`;
@@ -484,6 +538,7 @@ function bindToolbar() {
     hide: hideSelection,
     undo,
     explode: () => toggleExplodePanel(),
+    views: () => toggleViewSheet(),
     reset: resetAll,
   };
   document.querySelectorAll('.toolbar button[data-tool]').forEach(b =>
@@ -577,6 +632,7 @@ function applyFilter({ frame = false } = {}) {
     if (box) viewer.focusBox(box); else viewer.resetCamera();
   }
   updateVisibleCount();
+  if (!$('#viewSheet').hidden) buildJointChips();
   syncToolbar();
 }
 
@@ -842,6 +898,8 @@ function bindUI() {
     syncTabs();
   });
   $('#railToggle').addEventListener('click', () => setRail(!state.rail));
+  document.querySelectorAll('#viewSheet [data-dir]').forEach(b =>
+    b.addEventListener('click', () => goToDir(b.dataset.dir)));
   $('#contentsBtn').addEventListener('click', () => openContents(true));
   $('#contentsClose').addEventListener('click', () => openContents(false));
   $('#cutClear').addEventListener('click', clearCuts);
@@ -997,10 +1055,7 @@ function bindUI() {
     else if (e.key === '[') { pushUndo(); setPeel(viewer.peel - 1); }
     else if (e.key === 'i' && viewer.selected >= 0) $('#isolateBtn').click();
     else if (e.key === 'c' && viewer.selected >= 0) $('#compareBtn').click();
-    else if (VIEW_KEYS[e.key.toLowerCase()]) {
-      viewer.goToView(VIEW_KEYS[e.key.toLowerCase()]);
-      state.markView(VIEW_KEYS[e.key.toLowerCase()]);
-    }
+    else if (VIEW_KEYS[e.key.toLowerCase()]) goToDir(VIEW_KEYS[e.key.toLowerCase()]);
   });
 
   // Some tablets do not report `hover: none` until they are actually touched.
@@ -1016,7 +1071,8 @@ function resetView() {
 }
 
 
-const VIEW_KEYS = { a: 'A', p: 'P', s: 'S', r: 'R', l: 'L' };
+// Keyboard shortcuts for the standard views; the sheet has the buttons.
+const VIEW_KEYS = { a: 'A', p: 'P', s: 'S', l: 'L', r: 'R', f: 'I' };
 
 // ----------------------------------------------------------------- search
 function runSearch() {

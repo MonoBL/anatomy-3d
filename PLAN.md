@@ -89,11 +89,21 @@ Validation: a `npm run report:regions` table, every region non-empty, no part un
 - Still to do: the same treatment for `skeletal` vs `connective` ("ligaments and bones"),
   and a deep/superficial split for vessels.
 
-### 2.3 Landmarks for the joint shortcuts
-Named anchors computed from bone centroids: shoulder, elbow, wrist, hip, knee, ankle,
-cervical spine, lumbar spine, TMJ, and the hand/foot centres — per side. Each is a point
-plus a radius, enough for `CENTER`-style framing. Table in `tools/landmarks.json`,
-resolved to coordinates at build time.
+### 2.3 Landmarks for the joint shortcuts — done, `tools/landmarks.mjs`
+Fourteen definitions, each a pair of bone-name patterns, resolved at build time into 25
+landmarks (both sides where it applies): shoulder, elbow, wrist, hand, hip, knee, ankle,
+foot, jaw, skull base, cervical spine, sternoclavicular, lumbar spine, sacroiliac. A joint
+is where two bones almost touch, so that is how the point is found — the closest pair of
+sampled vertices between the two bones, and the midpoint between them. No hand-placed
+coordinates to drift out of date, and a missing bone reports itself in the build log.
+
+The views sheet holds ANT / POS / LAT / MED / SUP / INF plus the joints of whichever region
+is on screen. LAT and MED resolve against the active side, or the selected structure's side.
+A standard view frames the region box rather than the whole body, and the four direction
+buttons left the right-hand rail, which now only carries auto-rotate, split and home.
+
+One thing that needed fixing: BP3D is +x to the body's own left, so a camera at +x shows the
+left side. The old view table had the two lateral directions the wrong way round.
 
 ### 2.4 Presets — done, `src/presets.js`
 A declarative list (client-side, no atlas rebuild needed): id, group, label EN/PT, the systems
@@ -177,7 +187,7 @@ cards mostly empty — they frame the visible content instead.
 | 2 | Toolbar | new bottom toolbar, hide/multiselect/undo/reset/centre | **done** — plus a 30-step undo stack |
 | 3 | Layers | 2.2 + layer stepper | **done** — peel by occlusion; fade still to do |
 | 4 | Presets | 2.4 + contents screen + thumbnails | **done** — cards per region, thumbnails cached in IndexedDB |
-| 5 | Views | 2.3 + views sheet + joint shortcuts | ANT/POS/LAT/MED/SUP/INF + joints per region |
+| 5 | Views | 2.3 + views sheet + joint shortcuts | **done** — 6 directions, LAT/MED by side, 25 joint landmarks |
 | 6 | Transparency | second pass + pick-through | ghosted bones with muscles visible |
 | 7 | Pins & bookmarks | labels, leader lines, saved states | a labelled screenshot for revision |
 | 8 | Polish & deploy | hide interface, PT audit, Vercel | usable for a whole study session, on a URL |

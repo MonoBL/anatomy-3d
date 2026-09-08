@@ -9,6 +9,7 @@ import { loadGraph, loadElements, ancestorsOf, ROOT } from './lib-bp3d.mjs';
 import { ALL_SYSTEMS } from './systems.mjs';
 import { REGIONS, SUBREGIONS, assignRegions, regionBoxes } from './regions.mjs';
 import { assignLayers } from './layers.mjs';
+import { findJoints } from './landmarks.mjs';
 import { loadSources, describePart } from './describe.mjs';
 
 const OBJ_DIR = path.join(ROOT, 'data/obj/isa_BP3D_4.0_obj_99');
@@ -262,6 +263,9 @@ async function main() {
   // Muscular layers, ranked within each region.
   const layerCount = assignLayers(raw, { log });
 
+  // Joint landmarks for the view shortcuts.
+  const joints = findJoints(raw, { log });
+
   // Inventory wall: one slot per part, laid out in reading order.
   const cols = Math.max(1, Math.round(Math.sqrt(raw.length * GRID_ASPECT)));
   const rows = Math.ceil(raw.length / cols);
@@ -365,6 +369,7 @@ async function main() {
       ...r, box: boxes[r.id]?.all ?? null, boxSide: boxes[r.id] ?? null,
       layers: layerCount[r.id] ?? 1,
     })),
+    joints,
     subregions: SUBREGIONS.map(sr => ({
       ...sr, box: boxes[sr.id]?.all ?? null, boxSide: boxes[sr.id] ?? null,
     })),

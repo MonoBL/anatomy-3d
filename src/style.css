@@ -630,3 +630,34 @@ button { cursor: pointer; border: 0; background: none; }
   .contentsbtn span { display: none; }
   .contentsbtn { padding: 0; width: 38px; justify-content: center; }
 }
+
+/* --------------------------------------------------------- views sheet
+   Sits above the toolbar: the six standard directions, and the joints of
+   whichever region is on screen. */
+.viewsheet {
+  position: absolute; bottom: calc(122px + var(--sab)); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 8px; padding: 12px 14px;
+  background: var(--card); backdrop-filter: blur(14px);
+  border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-lg);
+  max-width: min(660px, calc(100vw - 36px)); z-index: 6;
+  animation: sheetIn .18s ease both;
+}
+@keyframes sheetIn { from { opacity: 0; transform: translateX(-50%) translateY(6px); } }
+.viewsheet-row { display: flex; align-items: center; gap: 12px; }
+.viewsheet-k {
+  flex: 0 0 84px; font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 550; line-height: 1.2;
+}
+.viewsheet-btns { display: flex; flex-wrap: wrap; gap: 4px; }
+.viewsheet-btns button {
+  min-height: 34px; min-width: 46px; padding: 0 12px; border-radius: 10px;
+  background: var(--bg-2); color: var(--ink-2);
+  font-size: 10.5px; font-weight: 550; letter-spacing: .04em;
+}
+.viewsheet-btns button:hover { background: var(--accent); color: #fff; }
+.viewsheet-btns .joint { text-transform: none; letter-spacing: 0; font-weight: 500; }
+
+@media (max-width: 900px) {
+  .viewsheet { bottom: calc(130px + var(--sab)); }
+  .viewsheet-btns button { min-height: 40px; }
+}

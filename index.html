@@ -126,10 +126,6 @@
 
     <!-- view toolbar -->
     <div class="viewbar">
-      <button data-view="A" data-i18n-title="view.A">A</button>
-      <button data-view="P" data-i18n-title="view.P">P</button>
-      <button data-view="S" data-i18n-title="view.S">S</button>
-      <button data-view="R" data-i18n-title="view.R">R</button>
       <button data-view="spin" data-i18n-title="view.spin" class="round">
         <svg viewBox="0 0 16 16" class="ico"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13 2.2V5h-2.8"/></svg>
       </button>
@@ -140,6 +136,25 @@
         <svg viewBox="0 0 16 16" class="ico"><path d="M3 8a5 5 0 1 0 1.6-3.7"/><path d="M3 2.2V5h2.8"/></svg>
       </button>
     </div>
+
+    <!-- views sheet -->
+    <section class="viewsheet" id="viewSheet" hidden>
+      <div class="viewsheet-row">
+        <span class="viewsheet-k" data-i18n="view.dirs">Standard views</span>
+        <div class="viewsheet-btns">
+          <button data-dir="A">ANT</button>
+          <button data-dir="P">POS</button>
+          <button data-dir="lateral">LAT</button>
+          <button data-dir="medial">MED</button>
+          <button data-dir="S">SUP</button>
+          <button data-dir="I">INF</button>
+        </div>
+      </div>
+      <div class="viewsheet-row" id="viewJointsRow">
+        <span class="viewsheet-k" data-i18n="view.joints">Joints</span>
+        <div class="viewsheet-btns" id="viewJoints"></div>
+      </div>
+    </section>
 
     <!-- tools -->
     <div class="toolbar" id="toolbar">
@@ -153,6 +168,10 @@
           <svg viewBox="0 0 20 12" class="tico"><path d="M3 3.5 10 9l7-5.5"/></svg>
         </button>
       </div>
+      <button data-tool="views" data-i18n-title="tool.views">
+        <svg viewBox="0 0 20 20" class="tico"><path d="M1.8 10S5 4.8 10 4.8 18.2 10 18.2 10 15 15.2 10 15.2 1.8 10 1.8 10Z"/><circle cx="10" cy="10" r="2.3"/></svg>
+        <span data-i18n="tool.views">Views</span>
+      </button>
       <button data-tool="center" data-i18n-title="tool.center">
         <svg viewBox="0 0 20 20" class="tico"><circle cx="10" cy="10" r="2.6"/><path d="M10 1.6v3.2M10 15.2v3.2M1.6 10h3.2M15.2 10h3.2"/></svg>
         <span data-i18n="tool.center">Center</span>

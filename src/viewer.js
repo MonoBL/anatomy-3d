@@ -111,9 +111,15 @@ void main() {
 
 
 
+// Camera directions, in the anatomical sense: BP3D is +z anterior and +x is
+// the body's own left, so a camera at +x looks at the left side of the body.
 const VIEWS = {
-  A: [0, 0, 1], P: [0, 0, -1], S: [0, 1, 0.0001], R: [1, 0, 0], L: [-1, 0, 0],
+  A: [0, 0, 1], P: [0, 0, -1],
+  S: [0, 1, 0.0001], I: [0, -1, 0.0001],
+  L: [1, 0, 0], R: [-1, 0, 0],
 };
+
+export const VIEW_KEYS = Object.keys(VIEWS);
 
 export class Viewer {
   constructor(canvas, index) {
@@ -545,15 +551,30 @@ export class Viewer {
   // A standard view reframes as well as rotates: the point of asking for
   // "anterior" is to see the whole thing from the front, not to keep whatever
   // zoom you happened to be at.
-  goToView(key, duration = 620) {
+  // `box` frames a region rather than the whole body: asking for "lateral"
+  // while the upper limb is on screen should not pull the camera back to see
+  // a body that is not being drawn.
+  goToView(key, duration = 620, box = null) {
     const v = VIEWS[key];
     if (!v) return;
     const part = this.selected >= 0 ? this.byId.get(this.selected) : null;
+    const vFov = THREE.MathUtils.degToRad(this.camera.fov);
     let target, dist;
     if (part) {
       target = new THREE.Vector3(...(this.uniforms.uInventory.value > 0.01 ? part.g : part.c));
-      const vFov = THREE.MathUtils.degToRad(this.camera.fov);
       dist = Math.max(part.r / Math.tan(vFov / 2) * 1.6, 0.1);
+    } else if (box && this.uniforms.uInventory.value < 0.01) {
+      target = new THREE.Vector3(...[0, 1, 2].map(a => (box.min[a] + box.max[a]) / 2));
+      const half = [0, 1, 2].map(a => (box.max[a] - box.min[a]) / 2);
+      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
+      // Which extents face the camera, and which way up they land on screen:
+      // the up vector is +y unless the camera looks along y.
+      const axis = v[0] ? 0 : v[1] ? 1 : 2;
+      const [vert, horiz] = axis === 0 ? [1, 2] : axis === 1 ? [2, 0] : [1, 0];
+      dist = Math.max(half[vert] * 1.18 / Math.tan(vFov / 2),
+        half[horiz] * 1.12 / Math.tan(hFov / 2)) + half[axis];
+      this.targetDistance = THREE.MathUtils.clamp(dist, this.controls.minDistance, this.controls.maxDistance);
+      dist = this.targetDistance;
     } else {
       target = this.stageTarget();
       this.frameCurrent();
@@ -698,6 +719,15 @@ export class Viewer {
     }
     ctx.putImageData(img, 0, 0);
     return canvas;
+  }
+
+  // A joint landmark: frame the bone ends around it, not the gap itself.
+  focusJoint(joint, duration = 640) {
+    const r = (joint.r ?? 0.05) * 2.1;
+    this.focusBox({
+      min: joint.p.map(v => v - r),
+      max: joint.p.map(v => v + r),
+    }, duration);
   }
 
   // Frame an axis-aligned world box, used by the region views.
