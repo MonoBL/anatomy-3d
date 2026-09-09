@@ -19,6 +19,9 @@ const stamp = iso => (iso ? `${iso.slice(0, 16).replace('T', ' ')} UTC` : '—')
 
 // A phone, either way up: narrow, or short and not wide.
 const PHONE_QUERY = '(max-width: 700px), (max-width: 1000px) and (max-height: 500px)';
+// Asked live: a cached flag goes stale the moment the window changes size, and
+// the bottom slot's behaviour depends on the answer being right.
+const isPhone = () => matchMedia(PHONE_QUERY).matches;
 const FMA_URL = id => `https://bioportal.bioontology.org/ontologies/FMA?p=classes&conceptid=http%3A%2F%2Fpurl.org%2Fsig%2Font%2Ffma%2F${id.toLowerCase()}`;
 const WIKI_URL = (lang, title) => `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
 
@@ -95,7 +98,7 @@ async function init() {
     if (saved !== null) rail = saved === '1';
   } catch { /* private mode */ }
   // On a phone the rail is modal, so it never opens by itself.
-  setRail(rail && !state.phone);
+  setRail(rail && !isPhone());
   tick();
   state.text[state.lang] = await loadText(state.lang);
   await loadAll();
@@ -588,9 +591,9 @@ function markSheet(name) {
 function toggleViewSheet(on = $('#viewSheet').hidden) {
   // One sheet at a time on a phone, and properly closed rather than hidden, so
   // the toolbar's active states stay honest.
-  if (on && state.phone) toggleExplodePanel(false);
+  if (on && isPhone()) toggleExplodePanel(false);
   $('#viewSheet').hidden = !on;
-  if (state.phone) markSheet(on ? 'views' : null);
+  markSheet(on ? 'views' : null);
   // Below a wide desktop the sheet and the rail would sit on top of each
   // other, so only one of them is open at a time.
   if (on && state.rail && innerWidth < 1280) setRail(false);
@@ -804,7 +807,7 @@ function setRail(open) {
   $('#railToggle').setAttribute('aria-expanded', String(open));
   // On a phone the rail covers most of the screen, so it is modal: a scrim
   // behind it, and a tap anywhere outside closes it.
-  $('#scrim').hidden = !(open && state.phone);
+  $('#scrim').hidden = !(open && isPhone());
   try { localStorage.setItem('atlas.rail', open ? '1' : '0'); } catch { /* private mode */ }
 }
 
@@ -816,9 +819,9 @@ function setSearchOpen(open) {
 }
 
 function toggleExplodePanel(on = $('#explodePanel').hidden) {
-  if (on && state.phone) toggleViewSheet(false);
+  if (on && isPhone()) toggleViewSheet(false);
   $('#explodePanel').hidden = !on;
-  if (state.phone) markSheet(on ? 'explode' : null);
+  markSheet(on ? 'explode' : null);
   document.querySelector('.toolbar button[data-tool="explode"]')?.classList.toggle('is-active', on);
   document.querySelector('.toolbar button[data-tool="views"]')
     ?.classList.toggle('is-active', !$('#viewSheet').hidden);
@@ -1190,7 +1193,7 @@ function selectPart(id, { focus = false, keepSelection = false } = {}) {
   $('#detailSource').href = txt.s ? WIKI_URL(state.lang, txt.s) : FMA_URL(p.f);
   $('#isolateBtn').classList.toggle('is-on', viewer.isolated);
   $('#detail').hidden = false;
-  if (state.phone) markSheet(null);
+  markSheet(null);
 
   const hasPair = p.p !== undefined;
   $('#compareBtn').hidden = !hasPair;
@@ -1519,7 +1522,7 @@ function chooseResult(i) {
   if (!p) return;
   $('#results').hidden = true;
   $('#search').blur();
-  if (state.phone) setSearchOpen(false);
+  if (isPhone()) setSearchOpen(false);
   selectPart(p.i, { focus: true });
 }
 

@@ -80,9 +80,12 @@ repo carries the muscle *names* it verifies (nomenclature is fact) and reads the
 text from a local file that is not redistributed — `tools/extract-miologia.py` and
 `npm run map:miologia` rebuild it from the PDF.
 
-**On a tablet.** A thumb-reachable toolbar, 30 steps of undo, saved views, hide-interface for
-a clean screenshot, add-to-home-screen, and one button that stores the whole 27 MB atlas on
-the device so it works with no connection.
+**On a tablet, and on a phone.** A thumb-reachable toolbar, 30 steps of undo, saved views,
+hide-interface for a clean screenshot, add-to-home-screen, and one button that stores the
+whole 27 MB atlas on the device so it works with no connection. On a phone the top bar goes
+to icons, the strips scroll, the toolbar becomes a five-by-two grid, the systems panels become
+a modal drawer, and the detail sheet, the views sheet and the explode slider share one slot
+at the bottom — audited in both orientations.
 
 ## Run it
 

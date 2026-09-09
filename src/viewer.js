@@ -180,7 +180,6 @@ export class Viewer {
 
     this.scene = new THREE.Scene();
     this.initLighting();
-    this.initStage();
     this.camera = new THREE.PerspectiveCamera(34, 1, 0.005, 100);
     this.camera.position.set(1.05, 0.12, 4.8);
 
@@ -659,7 +658,6 @@ export class Viewer {
     const inventory = t <= 0.6 ? 0 : (t - 0.6) / 0.4;
     this.uniforms.uExplode.value = easeOut(explode);
     this.uniforms.uInventory.value = easeInOut(inventory);
-    if (this.stage) this.stage.visible = t < 0.12;
   }
 
   // Half-extents of everything on screen at the current spread.
@@ -786,7 +784,6 @@ export class Viewer {
       min: this.uniforms.uClipMin.value.clone(),
       max: this.uniforms.uClipMax.value.clone(),
     };
-    const stageWasVisible = this.stage ? this.stage.visible : false;
 
     // Only the parts this card is about, inside the box it frames.
     const allowed = filter ? this.filterSet(filter) : this.regionParts;
@@ -805,7 +802,6 @@ export class Viewer {
     this.stateTex.needsUpdate = true;
     for (const [id, mesh] of this.meshes) mesh.visible = wanted.has(id);
     for (const mesh of this.ghostMeshes.values()) mesh.visible = false;
-    if (this.stage) this.stage.visible = false;
     if (box) this.setClip(box);
 
     // Frame what is actually on the card, not the region box: a limb box is
@@ -853,7 +849,6 @@ export class Viewer {
     this.stateTex.needsUpdate = true;
     for (const [id, mesh] of this.meshes) mesh.visible = savedMesh.get(id) !== false;
     for (const [id, mesh] of this.ghostMeshes) mesh.visible = savedGhost.get(id) !== false;
-    if (this.stage) this.stage.visible = stageWasVisible;
     this.uniforms.uClipOn.value = savedClip.on;
     this.uniforms.uClipMin.value.copy(savedClip.min);
     this.uniforms.uClipMax.value.copy(savedClip.max);
@@ -1005,8 +1000,8 @@ export class Viewer {
 
 
 
-  // Look slightly below centre so the figure sits high enough for its turntable
-  // to stay clear of the controls docked at the bottom.
+  // Look slightly below centre, so the figure sits high enough to clear the
+  // controls docked along the bottom.
   stageTarget() {
     const t = this.center.clone();
     t.y -= this.boxHalf[1] * 0.07;
@@ -1034,36 +1029,6 @@ export class Viewer {
     this.scene.add(rim);
   }
 
-  // A floor and a turntable: the body needs something to stand on, otherwise it
-  // floats in a void and the eye has no sense of its size.
-  initStage() {
-    const floorY = this.index.bounds.min[1];
-    this.stage = new THREE.Group();
-    this.stage.position.y = floorY;
-
-    const ground = new THREE.Mesh(
-      new THREE.CircleGeometry(30, 96),
-      new THREE.MeshStandardMaterial({ color: 0xd5d9dc, roughness: 1 }));
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.019;
-    this.stage.add(ground);
-
-    const platform = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.68, 0.7, 0.028, 100),
-      new THREE.MeshStandardMaterial({ color: 0xeeeeec, metalness: 0.12, roughness: 0.67 }));
-    platform.position.y = -0.016;
-    this.stage.add(platform);
-
-    for (const [inner, outer, opacity] of [[0.63, 0.632, 0.4], [0.55, 0.551, 0.16]]) {
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(inner, outer, 128),
-        new THREE.MeshBasicMaterial({ color: 0x8c969f, transparent: true, opacity, side: THREE.DoubleSide }));
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.y = 0.001;
-      this.stage.add(ring);
-    }
-    this.scene.add(this.stage);
-  }
 
 
 
@@ -1078,8 +1043,6 @@ export class Viewer {
     const px = Math.floor((x - left) * dpr), py = Math.floor((this.height - y) * dpr);
     if (px < 0 || py < 0 || px >= w || py >= h) return -1;
     this.camera.setViewOffset(w, h, px, h - py - 1, 1, 1);
-    const stageWasVisible = this.stage ? this.stage.visible : false;
-    if (this.stage) this.stage.visible = false;
     // Both passes share the geometry, so the ghost mesh would only draw the
     // same ids twice.
     const ghostWasVisible = new Map([...this.ghostMeshes].map(([id, m]) => [id, m.visible]));
@@ -1092,7 +1055,6 @@ export class Viewer {
     this.renderer.readRenderTargetPixels(this.pickTarget, 0, 0, 1, 1, this.pickPixel);
     this.renderer.setRenderTarget(null);
     this.scene.overrideMaterial = null;
-    if (this.stage) this.stage.visible = stageWasVisible;
     for (const [id, mesh] of this.ghostMeshes) mesh.visible = ghostWasVisible.get(id) !== false;
     this.camera.clearViewOffset();
     if (this.split) this.usePane('A');

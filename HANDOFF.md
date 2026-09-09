@@ -104,9 +104,11 @@ extended with `onBeforeCompile`:
 - fragment: discards hidden parts and anything outside the cut box, then tints the selection.
 
 Lighting is the reference's: prefiltered `RoomEnvironment`, `HemisphereLight`, a warm key and
-a cool rim, ACES filmic tone mapping at exposure 1.12, sRGB output, and a turntable (floor,
-platform, two rings) that hides once the explode slider moves. Surface detail is geometric,
-from the preserved normals — there is no procedural fibre shading any more.
+a cool rim, ACES filmic tone mapping at exposure 1.12, sRGB output. Surface detail is
+geometric, from the preserved normals — there is no procedural fibre shading any more. The
+turntable the reference stands its figure on (floor, platform, two rings) was removed in
+0.2.1: it sits in front of the body whenever you look up from below, which is exactly the
+angle for the pelvis and the plantar surface.
 
 Result: the whole body in **~15 draw calls at 60 fps**. Picking renders a 1×1 pixel id-buffer
 under the cursor with an override material (the stage is hidden for that pass).
@@ -124,6 +126,12 @@ under the cursor with an override material (the stage is hidden for that pass).
 - **Muscular layers** — ten per region, peeled superficial-first with a fade.
 - **Toolbar** — layer stepper, views, pins, transparency, centre, isolate, multiselect, hide,
   undo (30 steps), explode, reset, hide interface.
+- **Phone layout** (0.2.1) — icons-only top bar with a search that expands over it, strips that
+  scroll and reveal their active chip, the toolbar as a five-by-two grid with the stepper as a
+  cell spanning both rows, the systems panels as a modal drawer, and one bottom slot shared by
+  the detail sheet, the views sheet and the explode slider. Landscape on a phone is short
+  rather than narrow, so the rules key on
+  `(max-width: 700px), (max-width: 1000px) and (max-height: 500px)`.
 - **Views sheet** — ANT/POS/LAT/MED/SUP/INF, LAT and MED resolved against the active side,
   plus the joints of the region on screen.
 - **Transparency** — three steps; with something selected the rest fades, otherwise the whole
@@ -174,6 +182,14 @@ Do not re-learn these:
 - **`backdrop-filter` on a child escapes an ancestor's scroll clip in iOS Safari.** That is
   what made the rail's panels paint over each other on the iPad; the rail's panels are solid
   now, and it is the only scroll container.
+- **A backdrop-filtered element is also the containing block for a `position: fixed`
+  descendant.** The layer stepper could not be lifted out of the toolbar that way; on a phone
+  it is a grid cell spanning both rows instead.
+- **`flex: 1 1 auto` on a box with no in-flow content collapses in Safari.** The phone's
+  explode slider came out as a pill and a button with nothing between them until the track
+  got `flex: 1 1 0%`.
+- **A cached `matchMedia` result goes stale on rotation.** The one-panel-at-a-time rule asks
+  the query live.
 - **One material cannot write depth for some fragments and not others**, which is why
   transparency needs a second mesh per system rather than a flag.
 - **`meshoptimizer` samples per vertex, but anatomy is per area.** Vertex-stride sampling let

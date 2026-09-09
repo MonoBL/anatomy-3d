@@ -227,14 +227,21 @@ controls, arranged for one hand on a small screen.
 | 8 | Hide-interface moves into the drawer | it is for screenshots, not for constant use |
 | 9 | Audit at 390x844 and 844x390 with every panel open, as the tablet layout was audited | the only way this stays fixed |
 
-**Done.** Audited clean in both orientations with the detail sheet, the views sheet, the
+**Done (0.2.1).** Audited clean in both orientations with the detail sheet, the views sheet, the
 explode sheet and the drawer each open. Three things were learned on the way: a
 backdrop-filtered element is the containing block for a `position: fixed` child, so the layer
 stepper could not be lifted out of the toolbar and became a grid cell spanning both rows
 instead; a phone in landscape is short rather than narrow, so the phone rules key on
 `(max-width: 700px), (max-width: 1000px) and (max-height: 500px)`; and the tablet rules that
 cap the detail panel at 320px with an auto margin had to be undone explicitly for the sheet
-to fill the width.
+to fill the width. Two more came out of testing on the phone itself: `flex: 1 1 auto` on a box
+with no in-flow content collapses in Safari, which left the explode slider as a pill and a
+button with nothing between them, and a cached `matchMedia` result goes stale on rotation, so
+the one-panel-at-a-time rule asks the query live.
+
+The turntable went with it — the floor, platform and rings the reference stands its figure on.
+They sit in front of the body whenever you look up from below, which is the angle for the
+pelvis and the plantar surface.
 
 ## 7. Decisions taken (2026-09-08)
 

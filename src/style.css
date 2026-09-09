@@ -1026,9 +1026,13 @@ button { cursor: pointer; border: 0; background: none; }
     bottom: calc(140px + var(--sab));
     flex-direction: row; align-items: center; gap: 10px; padding: 10px 12px;
   }
-  .explode .vtrack { width: auto; flex: 1 1 auto; height: 26px; }
+  /* A flex basis of 0 rather than auto: with `auto` the track has no content
+     to size from (the input is absolutely positioned in the tablet layout) and
+     Safari collapses it to nothing, which left the panel as a pill and a
+     button with no slider between them. */
+  .explode .vtrack { flex: 1 1 0%; width: auto; min-width: 0; height: 26px; }
   .explode .vslider {
-    position: static; width: 100%; height: 26px; transform: none;
+    position: static; width: 100%; height: 26px; transform: none; flex: 1 1 auto;
   }
 
   /* --- the drawer, and the sheets */
@@ -1058,6 +1062,7 @@ button { cursor: pointer; border: 0; background: none; }
   /* --- one panel in the bottom slot at a time */
   #app.sheet-views #detail, #app.sheet-views #explodePanel,
   #app.sheet-explode #detail, #app.sheet-explode #viewSheet { display: none; }
+  .explode, .viewsheet { z-index: 8; }
 
   /* --- contents screen */
   .contents-head, .contents-regions, .contents-body { padding-left: 12px; padding-right: 12px; }
