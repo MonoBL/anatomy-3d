@@ -1,7 +1,9 @@
 // Service worker: keeps the shell offline and, on request, the whole atlas.
 // The atlas binaries are content-addressed by the build, so they are cached
 // forever; index.html never is, or a deploy would never reach the device.
-const SHELL = 'shell-v1';
+// Bumping these names is what evicts an old shell: the assets are hashed, but
+// index.html and the icons are not.
+const SHELL = 'shell-v2';
 const ATLAS = 'atlas-v1';
 const FONTS = 'fonts-v1';
 

@@ -4,9 +4,25 @@
 
 export function registerServiceWorker() {
   if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
-  addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(err =>
-      console.warn('service worker registration failed', err));
+  addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      // Ask on every start: a home-screen app can sit open for days, and the
+      // worker only notices a new version when it is told to look.
+      reg.update();
+      setInterval(() => reg.update(), 60 * 60 * 1000);
+    } catch (err) {
+      console.warn('service worker registration failed', err);
+    }
+  });
+
+  // A new worker calls clients.claim(), which swaps the controller under a page
+  // that is already running with the old assets. Reload once, and only once.
+  let swapped = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (swapped) return;
+    swapped = true;
+    location.reload();
   });
 }
 
