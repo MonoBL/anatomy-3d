@@ -1,7 +1,7 @@
 {
   "name": "human-atlas",
   "private": true,
-  "version": "0.2.3",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "fetch:data": "node tools/fetch-data.mjs",

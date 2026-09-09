@@ -3,7 +3,7 @@
 // forever; index.html never is, or a deploy would never reach the device.
 // Bumping these names is what evicts an old shell: the assets are hashed, but
 // index.html and the icons are not.
-const SHELL = 'shell-v2';
+const SHELL = 'shell-v3';
 const ATLAS = 'atlas-v1';
 const FONTS = 'fonts-v1';
 

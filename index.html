@@ -107,6 +107,21 @@
       </div>
     </section>
 
+    <!-- notes -->
+    <section class="panel notes" id="notesPanel">
+      <div class="panel-head">
+        <span data-i18n="notes.title">Notes</span>
+        <span class="pill" id="noteCount">0</span>
+      </div>
+      <div class="notelist" id="noteList"></div>
+      <div class="note-io">
+        <button class="linkbtn" id="noteExport" data-i18n="notes.export">Export</button>
+        <button class="linkbtn" id="noteImportBtn" data-i18n="notes.import">Import</button>
+        <input type="file" id="noteImport" accept="application/json,.json" hidden />
+      </div>
+      <p class="note-io-msg" id="noteIoMsg" hidden></p>
+    </section>
+
     <!-- saved views -->
     <section class="panel marks" id="marksPanel">
       <div class="panel-head">
@@ -249,6 +264,24 @@
         <div><span class="k" data-i18n="detail.volume">Volume</span><span class="v" id="detailVolume">—</span></div>
         <div><span class="k" data-i18n="detail.pieces">Selected pieces</span><span class="v" id="detailCount">1</span></div>
       </div>
+      <div class="notes-block" id="detailNotes">
+        <div class="notes-head">
+          <span data-i18n="notes.mine">My notes</span>
+          <span class="pill" id="detailNoteCount">0</span>
+        </div>
+        <div class="notes-mine" id="detailNoteList"></div>
+        <div class="notes-edit">
+          <textarea id="noteText" rows="3" maxlength="2000"
+            data-i18n-ph="notes.placeholder" placeholder="Write what to remember about this structure"></textarea>
+          <div class="notes-targets" id="noteTargets"></div>
+          <div class="notes-actions">
+            <button class="secondary" id="noteSave"><span id="noteSaveLabel" data-i18n="notes.add">Add note</span></button>
+            <button class="linkbtn" id="noteCancel" hidden data-i18n="notes.cancel">Cancel</button>
+          </div>
+          <p class="notes-msg" id="noteMsg" hidden></p>
+        </div>
+      </div>
+
       <div class="myology" id="detailMyology" hidden>
         <div class="myorow"><span class="k" data-i18n="detail.origem">Origin</span><p id="detailOrigem"></p></div>
         <div class="myorow"><span class="k" data-i18n="detail.insercao">Insertion</span><p id="detailInsercao"></p></div>

@@ -80,6 +80,13 @@ repo carries the muscle *names* it verifies (nomenclature is fact) and reads the
 text from a local file that is not redistributed — `tools/extract-miologia.py` and
 `npm run map:miologia` rebuild it from the PDF.
 
+**Notes of your own.** Click a structure and write on it; the note is kept on the device and
+listed in the rail, and clicking a note there turns the systems back on and frames the
+structures it belongs to. A multiselection writes one note for the whole group ("these three
+are the pectoralis major"); that note then shows on each of its structures, marked as a group
+note and one tap from selecting the group again. The tooltip marks a structure that already
+carries notes, and the whole set exports to a JSON file and comes back on another device.
+
 **On a tablet, and on a phone.** A thumb-reachable toolbar, 30 steps of undo, saved views,
 hide-interface for a clean screenshot, add-to-home-screen, and one button that stores the
 whole 27 MB atlas on the device so it works with no connection. On a phone the top bar goes
@@ -166,8 +173,8 @@ surviving vertices: recomputing them is what made every muscle look like plastic
 | `tools/pt-terms.mjs` · `pt-derive.mjs` | Portuguese vocabulary · the derivation |
 | `tools/verify.mjs` · `report-*.mjs` · `check-i18n.mjs` | the safety net |
 | `src/viewer.js` | three.js scene, materials, picking, cuts, filters, thumbnails |
-| `src/main.js` | UI: toolbar, regions, contents, pins, saved views, search |
-| `src/presets.js` · `thumbs.js` · `bookmarks.js` · `offline.js` | plates · thumbnail cache · saved views · service worker |
+| `src/main.js` | UI: toolbar, regions, contents, pins, saved views, notes, search |
+| `src/presets.js` · `thumbs.js` · `bookmarks.js` · `notes.js` · `offline.js` | plates · thumbnail cache · saved views · study notes · service worker |
 
 `PLAN.md` is what was built and why; `HANDOFF.md` is the state of the project and the open
 decisions.

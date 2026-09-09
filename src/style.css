@@ -754,6 +754,69 @@ button { cursor: pointer; border: 0; background: none; }
 .secondary.wide { width: 100%; justify-content: center; }
 .offline .pill.is-ready { background: var(--accent); color: #fff; }
 
+/* ----------------------------------------------------------------- notes
+   The reader's own text. Two places: the block in the detail panel, where a
+   note is written for whatever is selected, and the list in the rail, where
+   every note is one tap from the structures it belongs to. */
+.notes { padding: 12px; flex: 0 0 auto; }
+.notelist { display: flex; flex-direction: column; gap: 2px; }
+.noterow {
+  display: flex; align-items: flex-start; gap: 6px; padding: 6px; border-radius: 8px;
+}
+.noterow:hover { background: var(--bg-2); }
+.noterow .ntext {
+  flex: 1 1 auto; min-width: 0; text-align: left; display: flex; flex-direction: column; gap: 2px;
+}
+.noterow .nbody {
+  font-size: 11px; line-height: 1.4; color: var(--ink);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.nwho {
+  font-size: 9px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ndel {
+  flex: 0 0 auto; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px;
+  font-size: 12px; line-height: 1; color: var(--ink-3);
+}
+.ndel:hover { background: var(--card-solid); color: var(--ink); }
+.ndel.is-armed { background: #c0392b; color: #fff; font-size: 9px; padding: 0 6px; }
+.note-io { display: flex; gap: 12px; padding: 8px 2px 0; margin-top: 6px; border-top: 1px solid var(--line-2); }
+.note-io-msg { margin: 6px 2px 0; font-size: 9.5px; color: var(--ink-3); }
+
+/* --- the block inside the detail panel */
+.notes-block { margin: 11px 0 2px; padding: 10px 0 0; border-top: 1px solid var(--line-2); }
+.notes-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; font-weight: 550; margin-bottom: 7px;
+}
+.notes-mine { display: flex; flex-direction: column; gap: 5px; }
+.mynote { background: var(--bg-2); border-radius: 8px; padding: 7px 8px; }
+.mynote.is-editing { outline: 1px solid var(--accent); }
+/* A note written on a multiselection appears on each of its structures, so it
+   says so, and offers the group back in one tap. */
+.mynote.is-group { border-left: 2px solid var(--accent); }
+.ngrouphead { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.ngroup {
+  flex: 1 1 auto; font-size: 8.5px; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 550;
+}
+.ngroupsel { flex: 0 0 auto; font-size: 9.5px; }
+.mynote p { margin: 0; font-size: 11px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; }
+.mynote-foot { display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+.mynote-foot .nwho { flex: 1 1 auto; min-width: 0; }
+.notes-edit { margin-top: 8px; }
+.notes-edit textarea {
+  width: 100%; box-sizing: border-box; resize: vertical; min-height: 54px;
+  font: inherit; font-size: 11.5px; line-height: 1.5; color: var(--ink);
+  background: var(--card-solid); border: 1px solid var(--line); border-radius: 9px; padding: 8px 9px;
+}
+.notes-edit textarea:focus { outline: none; border-color: var(--accent); }
+.notes-targets { margin: 5px 0 0; font-size: 9.5px; line-height: 1.4; color: var(--ink-3); }
+.notes-actions { display: flex; align-items: center; gap: 10px; }
+.notes-actions .secondary { width: auto; flex: 1 1 auto; }
+.notes-msg { margin: 5px 0 0; font-size: 9.5px; color: #c0392b; }
+.tooltip .tnote { display: block; margin-top: 3px; font-size: 9px; opacity: .7; }
+
 /* ------------------------------------------------- rail scrolling on iPad
    Two fixes for the same symptom (panels drawing over each other on an
    iPad): the rail is the only scroll container now, instead of nesting the
@@ -770,7 +833,7 @@ button { cursor: pointer; border: 0; background: none; }
      have scrolled to. */
   flex: 0 0 auto;
 }
-.syslist, .marklist {
+.syslist, .marklist, .notelist {
   max-height: none;
   overflow: visible;
 }
@@ -1070,6 +1133,9 @@ button { cursor: pointer; border: 0; background: none; }
   .cardgrid { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px; }
 
   .pin { max-width: 150px; font-size: 11px; }
+
+  /* iOS zooms the page in when a field under 16px takes focus. */
+  .notes-edit textarea { font-size: 16px; }
 }
 
 /* A phone in landscape is 844 x 390: the toolbar grid would eat the screen, so

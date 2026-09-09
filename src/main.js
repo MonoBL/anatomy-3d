@@ -5,6 +5,7 @@ import { registerServiceWorker, cacheAtlasOffline, offlineReady } from './offlin
 import { PRESETS, PRESET_GROUPS, presetsFor, presetSize, subregionCardsFor } from './presets.js';
 import { getThumb, putThumb, pruneThumbs } from './thumbs.js';
 import { loadBookmarks, addBookmark, removeBookmark } from './bookmarks.js';
+import { loadNotes, addNote, updateNote, removeNote, notesIndex, exportNotes, importNotes } from './notes.js';
 
 const $ = sel => document.querySelector(sel);
 
@@ -47,6 +48,7 @@ const state = {
   multiselect: false, undo: [],
   contentsRegion: null, preset: null,
   pins: [],
+  notes: [], noteIndex: new Map(), noteEdit: null,
   // The rail starts out of the way on a tablet, open on a desktop.
   rail: matchMedia('(min-width: 1100px)').matches && !matchMedia('(hover: none)').matches,
   phone: matchMedia(PHONE_QUERY).matches,
@@ -62,6 +64,9 @@ const tabWants = (tab, s) => !DEFAULT_OFF.has(s.id) &&
 const label = s => (state.lang === 'pt' && s.labelPt ? s.labelPt : s.label);
 const partName = p => state.text[state.lang]?.[p.i]?.n ?? p.n;
 const partText = p => state.text[state.lang]?.[p.i] ?? {};
+// The notes are the reader's own text, so they are the one thing in the UI
+// that has to be escaped before it goes into innerHTML.
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 registerServiceWorker();
 
@@ -92,6 +97,7 @@ async function init() {
   buildMarkList();
   bindUI();
   bindToolbar();
+  bindNotes();
   let rail = state.rail;
   try {
     const saved = localStorage.getItem('atlas.rail');
@@ -101,6 +107,9 @@ async function init() {
   setRail(rail && !isPhone());
   tick();
   state.text[state.lang] = await loadText(state.lang);
+  // After the text, so the list of notes names its structures in the reader's
+  // language rather than falling back to the English mesh names.
+  refreshNotes();
   await loadAll();
   // Cards opened mid-load have placeholders for systems that were not there
   // yet; now that everything is in, draw them.
@@ -135,6 +144,7 @@ async function setLang(lang, { initial = false } = {}) {
   buildSubBar();
   buildCutRows();
   buildMarkList();
+  buildNoteList();
   renderPins();
   if (!$('#contents').hidden) buildContents();
   updateVisibleCount();
@@ -481,6 +491,247 @@ function positionPins() {
     dot.setAttribute('cx', pinPoint.x);
     dot.setAttribute('cy', pinPoint.y);
   }
+}
+
+// ----------------------------------------------------------------- notes
+// The reader's own text, tied to whatever was selected when it was written, so
+// a multiselection ("these four flex the elbow") is one note rather than four
+// copies of it. Writing happens in the detail panel, because that is where the
+// structure already is; the rail lists every note and puts the model back on
+// the structures a note belongs to.
+function refreshNotes() {
+  state.notes = loadNotes();
+  state.noteIndex = notesIndex(state.notes);
+  buildNoteList();
+  renderDetailNotes();
+}
+
+const noteNames = ids => ids
+  .map(id => { const p = state.viewer?.byId.get(id); return p ? partName(p) : null; })
+  .filter(Boolean);
+
+// A note reads in the current language wherever the atlas still holds the
+// part; the names taken when it was written are only the fallback.
+function noteSubjects(n) {
+  const live = noteNames(n.parts);
+  return live.length ? live : (n.names ?? []);
+}
+
+function noteMeta(n) {
+  const names = noteSubjects(n);
+  if (names.length <= 2) return names.join(' · ');
+  const word = state.t('notes.structures');
+  return `${names[0]} + ${state.nf.format(names.length - 1)} ${word}`;
+}
+
+function noteDate(n) {
+  const d = new Date(n.edited ?? n.at);
+  const s = d.toLocaleDateString(state.lang === 'pt' ? 'pt-PT' : 'en-US', { day: 'numeric', month: 'short' });
+  return n.edited ? `${s} · ${state.t('notes.edited')}` : s;
+}
+
+// Deleting is two taps on the same button: the text is typed by hand, so a
+// stray tap on a tablet must not take it away.
+function armDelete(btn, run) {
+  if (btn.dataset.armed) { run(); return; }
+  btn.dataset.armed = '1';
+  const before = btn.textContent;
+  btn.textContent = state.t('notes.confirm');
+  btn.classList.add('is-armed');
+  setTimeout(() => {
+    if (!btn.isConnected) return;
+    delete btn.dataset.armed;
+    btn.textContent = before;
+    btn.classList.remove('is-armed');
+  }, 2600);
+}
+
+function buildNoteList() {
+  const wrap = $('#noteList');
+  if (!wrap) return;
+  $('#noteCount').textContent = state.nf.format(state.notes.length);
+  if (!state.notes.length) {
+    wrap.innerHTML = `<p class="marks-empty">${state.t('notes.empty')}</p>`;
+    return;
+  }
+  wrap.innerHTML = state.notes.map(n => `
+    <div class="noterow" data-note="${n.id}">
+      <button class="ntext">
+        <span class="nbody">${esc(n.text)}</span>
+        <span class="nwho">${esc(noteMeta(n))}</span>
+      </button>
+      <button class="ndel" title="${state.t('notes.delete')}">×</button>
+    </div>`).join('');
+  wrap.querySelectorAll('.noterow').forEach(row => {
+    const n = state.notes.find(x => x.id === row.dataset.note);
+    row.querySelector('.ntext').addEventListener('click', () => openNote(n));
+    row.querySelector('.ndel').addEventListener('click', e =>
+      armDelete(e.currentTarget, () => { removeNote(n.id); refreshNotes(); }));
+  });
+}
+
+// Clicking a note is the way back to what it is about: the systems come on,
+// the region filter steps aside, the parts are selected and framed.
+function openNote(n) {
+  const viewer = state.viewer;
+  if (!n) return;
+  const ids = n.parts.filter(id => viewer.byId.has(id));
+  if (!ids.length) return;
+  pushUndo();
+  for (const id of ids) {
+    const p = viewer.byId.get(id);
+    if (viewer.visibilityMap('A').get(p.s) === false) setSystem(p.s, true);
+  }
+  // A note can hold structures from more than one region, so the filter goes.
+  if (ids.some(id => !viewer.inRegion(viewer.byId.get(id)))) setRegion(null, { record: false });
+  for (const id of ids) viewer.hiddenParts.delete(id);
+  viewer.selection = new Set(ids);
+  viewer.selected = ids[ids.length - 1];
+  viewer.uniforms.uSelected.value = viewer.selected;
+  viewer.writeSelection();
+  viewer.applyVisibility();
+  state.noteEdit = null;
+  $('#noteText').value = '';
+  if (isPhone()) setRail(false);
+  selectPart(viewer.selected, { keepSelection: true });
+  viewer.focusSelection();
+  syncToolbar();
+}
+
+// The block inside the detail panel: the notes that mention anything in the
+// selection, then the box that writes a new one.
+function renderDetailNotes() {
+  const block = $('#detailNotes');
+  if (!block) return;
+  const viewer = state.viewer;
+  const ids = viewer ? [...viewer.selection] : [];
+  if (!ids.length) { block.hidden = true; return; }
+  block.hidden = false;
+  const sel = new Set(ids);
+  const mine = state.notes.filter(n => n.parts.some(id => sel.has(id)));
+  $('#detailNoteCount').textContent = state.nf.format(mine.length);
+
+  // The selection moved off the note being edited: stop editing it rather
+  // than saving the text onto something else.
+  if (state.noteEdit && !mine.some(n => n.id === state.noteEdit)) {
+    state.noteEdit = null;
+    $('#noteText').value = '';
+  }
+
+  const list = $('#detailNoteList');
+  // A note written on a multiselection shows up on each of its structures, so
+  // it says it is a group note and offers to select the group again.
+  list.innerHTML = mine.length
+    ? mine.map(n => {
+      const group = n.parts.length > 1;
+      const whole = group && n.parts.every(id => sel.has(id));
+      return `
+      <div class="mynote${group ? ' is-group' : ''}${state.noteEdit === n.id ? ' is-editing' : ''}" data-note="${n.id}">
+        ${group ? `<div class="ngrouphead">
+          <span class="ngroup">${state.t('notes.group')} · ${state.nf.format(n.parts.length)}</span>
+          ${whole ? '' : `<button class="linkbtn ngroupsel">${state.t('notes.selectGroup')}</button>`}
+        </div>` : ''}
+        <p>${esc(n.text)}</p>
+        <div class="mynote-foot">
+          <span class="nwho">${esc(noteMeta(n))} · ${noteDate(n)}</span>
+          <button class="linkbtn nedit">${state.t('notes.edit')}</button>
+          <button class="ndel" title="${state.t('notes.delete')}">×</button>
+        </div>
+      </div>`;
+    }).join('')
+    : `<p class="marks-empty">${state.t('notes.none')}</p>`;
+  list.querySelectorAll('.mynote').forEach(row => {
+    const n = mine.find(x => x.id === row.dataset.note);
+    row.querySelector('.nedit').addEventListener('click', () => {
+      state.noteEdit = n.id;
+      $('#noteText').value = n.text;
+      renderDetailNotes();
+      $('#noteText').focus();
+    });
+    row.querySelector('.ngroupsel')?.addEventListener('click', () => openNote(n));
+    row.querySelector('.ndel').addEventListener('click', e =>
+      armDelete(e.currentTarget, () => {
+        if (state.noteEdit === n.id) { state.noteEdit = null; $('#noteText').value = ''; }
+        removeNote(n.id);
+        refreshNotes();
+      }));
+  });
+
+  const editing = !!state.noteEdit;
+  const multi = ids.length > 1;
+  $('#noteText').placeholder = state.t(multi && !editing ? 'notes.placeholderMulti' : 'notes.placeholder');
+  $('#noteSaveLabel').textContent = state.t(editing ? 'notes.update' : 'notes.add');
+  $('#noteCancel').hidden = !editing;
+  // With several parts selected the note says which ones it will cover, so
+  // nobody has to remember what a multiselection is holding.
+  const targets = $('#noteTargets');
+  targets.hidden = editing || !multi;
+  targets.textContent = targets.hidden ? ''
+    : `${state.t('notes.on')} ${state.nf.format(ids.length)} ${state.t('notes.structures')}: ${noteNames(ids).join(' · ')}`;
+}
+
+function noteMsg(text) {
+  const el = $('#noteMsg');
+  el.textContent = text ?? '';
+  el.hidden = !text;
+}
+
+function saveNote() {
+  const ta = $('#noteText');
+  const text = ta.value.trim();
+  const ids = [...state.viewer.selection];
+  if (!text || !ids.length) return;
+  const ok = state.noteEdit
+    ? updateNote(state.noteEdit, text)
+    : addNote({ text, parts: ids, names: noteNames(ids) });
+  if (!ok) { noteMsg(state.t('notes.full')); return; }
+  noteMsg(null);
+  state.noteEdit = null;
+  ta.value = '';
+  refreshNotes();
+}
+
+// localStorage is per device, and clearing a browser takes it with it, so the
+// notes can leave as a file and come back.
+function exportNotesFile() {
+  const blob = new Blob([exportNotes()], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `atlas-notes-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+async function importNotesFile(e) {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  const io = $('#noteIoMsg');
+  const say = text => { io.textContent = text; io.hidden = false; };
+  const added = importNotes(await file.text());
+  if (added === null) { say(state.t('notes.importFailed')); return; }
+  refreshNotes();
+  say(added
+    ? `${state.nf.format(added)} ${state.t(added === 1 ? 'notes.importedOne' : 'notes.imported')}`
+    : state.t('notes.importNone'));
+}
+
+function bindNotes() {
+  $('#noteSave').addEventListener('click', saveNote);
+  $('#noteCancel').addEventListener('click', () => {
+    state.noteEdit = null;
+    $('#noteText').value = '';
+    noteMsg(null);
+    renderDetailNotes();
+  });
+  // ⌘/Ctrl + Enter saves: Enter alone has to stay a new line.
+  $('#noteText').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveNote(); }
+  });
+  $('#noteExport').addEventListener('click', exportNotesFile);
+  $('#noteImportBtn').addEventListener('click', () => $('#noteImport').click());
+  $('#noteImport').addEventListener('change', importNotesFile);
 }
 
 // ------------------------------------------------------------ saved views
@@ -1147,6 +1398,12 @@ function selectPart(id, { focus = false, keepSelection = false } = {}) {
   if (!keepSelection) viewer.setSelected(id);
   if (id < 0) {
     setCompare(false);
+    // Nothing selected: a draft has nothing to attach to, so it goes rather
+    // than landing on whatever is picked next.
+    state.noteEdit = null;
+    $('#noteText').value = '';
+    noteMsg(null);
+    renderDetailNotes();
     $('#detail').hidden = true;
     updateVisibleCount();
     syncToolbar();
@@ -1191,6 +1448,7 @@ function selectPart(id, { focus = false, keepSelection = false } = {}) {
   $('#detailCount').textContent = state.nf.format(
     state.compare && p.p !== undefined ? 2 : Math.max(1, state.viewer.selection.size));
   $('#detailSource').href = txt.s ? WIKI_URL(state.lang, txt.s) : FMA_URL(p.f);
+  renderDetailNotes();
   $('#isolateBtn').classList.toggle('is-on', viewer.isolated);
   $('#detail').hidden = false;
   markSheet(null);
@@ -1376,7 +1634,9 @@ function bindUI() {
   let tooltipTimer = 0;
   function showTooltip(id, x, y, hideAfter = 0) {
     const p = viewer.byId.get(id);
-    tooltip.innerHTML = `<span class="tsys">${label(state.systems.get(p.s))}</span>${partName(p)}`;
+    const notes = state.noteIndex.get(id)?.length ?? 0;
+    tooltip.innerHTML = `<span class="tsys">${label(state.systems.get(p.s))}</span>${partName(p)}`
+      + (notes ? `<span class="tnote">✎ ${state.nf.format(notes)}</span>` : '');
     tooltip.hidden = false;
     const r = tooltip.getBoundingClientRect();
     tooltip.style.left = `${Math.min(Math.max(8, x + 14), innerWidth - r.width - 10)}px`;
@@ -1441,7 +1701,7 @@ function bindUI() {
 
   // keyboard -----------------------------------------------------------
   addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if (e.key === '/') { e.preventDefault(); input.focus(); }
     else if (e.key === 'Escape') {
       if ($('#app').classList.contains('search-open')) setSearchOpen(false);

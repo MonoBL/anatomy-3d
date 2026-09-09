@@ -37,7 +37,7 @@ for (const key of en) {
 const unused = [...en].filter(k => !used.has(k) && !k.startsWith('src.') && !k.startsWith('compare.')
   && !k.startsWith('systems.') && !k.startsWith('detail.') && !k.startsWith('cut.')
   && !k.startsWith('region.') && !k.startsWith('view.') && !k.startsWith('marks.')
-  && !k.startsWith('offline.') && !k.startsWith('contents.') && !k.startsWith('tool.'));
+  && !k.startsWith('offline.') && !k.startsWith('notes.') && !k.startsWith('contents.') && !k.startsWith('tool.'));
 
 console.log(`${used.size} keys used, ${en.size} defined in en, ${pt.size} in pt`);
 if (unused.length) console.log(`possibly unused: ${unused.join(', ')}`);

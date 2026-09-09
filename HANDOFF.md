@@ -1,7 +1,8 @@
 # Handoff — Human Atlas
 
-State of the project as of 2026-09-08, after the second pass (regions, layers, contents,
-tools, deploy). Written so the next session can pick up without re-deriving anything.
+State of the project as of 2026-09-09, version 0.3.0: the second pass (regions, layers,
+contents, tools, deploy) plus the reader's own study notes. Written so the next session can
+pick up without re-deriving anything.
 Repo <https://github.com/MonoBL/anatomy-3d> (public, CC BY-SA 2.1 JP). The deployment is
 personal: the URL is deliberately not written down in the repo — `vercel ls anatomia` has it.
 
@@ -53,6 +54,7 @@ viewer without touching the pipeline.
 | `src/presets.js` | the contents cards: which systems each plate turns on |
 | `src/thumbs.js` | thumbnail cache (IndexedDB) |
 | `src/bookmarks.js` | saved views (localStorage) |
+| `src/notes.js` | study notes: text tied to part ids (localStorage), export/import |
 | `src/offline.js` | service-worker registration and the offline atlas download |
 | `src/i18n.js` | UI strings EN / PT-PT, language persistence |
 | `tools/pt-terms.mjs` | Portuguese anatomical vocabulary: nouns with gender, adjectives, compounds |
@@ -138,6 +140,16 @@ under the cursor with an override material (the stage is hidden for that pass).
   body does. A tap goes through anything under 15% alpha.
 - **Pins and saved views** — labels that follow the model, and named states that restore
   region, systems, layers, cuts, selection, pins and camera.
+- **Notes** (0.3.0) — the reader's own text tied to part ids, so a multiselection is one note
+  rather than one per part. Written in the detail panel, under the atlas fields and above the
+  myology block; listed in the rail, where a click turns the systems back on, drops the region
+  filter, unhides, selects and frames the structures the note belongs to. Names in the list are
+  read live from the atlas (so a note written in English reads in Portuguese) with the names
+  taken at writing time as the fallback. The tooltip marks a structure that already carries
+  notes, deleting is two taps on the same button, and the whole set exports to a JSON file and
+  imports back by merging on id. A note written on a multiselection appears on *each* of its
+  structures — hiding it until all of them are selected again would make it invisible while
+  browsing — so it is marked "group note · N structures" and offers the group back in one tap.
 - **Offline** — the service worker keeps the shell, and one button stores the whole atlas.
 
 ## Ours, on top of the reference
@@ -175,6 +187,13 @@ Do not re-learn these:
 - Wikipedia's anonymous API rate-limits hard: batch 20 titles, GET, ~1 req/s, back off on 429.
 - Tabs are presets that *set* visibility, not filters, and they never switch the body surface
   back on because it would hide everything behind it.
+- **The global keyboard shortcuts have to skip a `TEXTAREA` as well as an `INPUT`.** With the
+  notes box focused, `h` hid the selection and `[` peeled a layer instead of typing.
+- **Nothing inside the rail may be its own scroll container** (see the iPad note below), so the
+  notes list joins `.syslist` and `.marklist` in the rule that clears their `max-height`.
+- **A note is written before the atlas text has finished loading** if the list is built too
+  early in `init`: `partName` falls back to the English mesh name and the Portuguese list stays
+  English until the language is switched. The notes are read after `loadText`.
 - **A `WebGLRenderTarget` holds linear colour** unless its texture is marked
   `SRGBColorSpace`. Reading pixels back without that gives lurid thumbnails.
 - **BP3D's +x is the body's own left**, so a camera at +x shows the left side. The first view
