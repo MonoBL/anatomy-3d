@@ -40,6 +40,9 @@
 
     <!-- search + language + info -->
     <div class="topright">
+      <button class="iconbtn searchtoggle" id="searchToggle" data-i18n-title="search.placeholder">
+        <svg viewBox="0 0 16 16" class="ico"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+      </button>
       <div class="search">
         <svg viewBox="0 0 16 16" class="ico"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
         <input id="search" type="text" data-i18n-ph="search.placeholder" placeholder="Find a structure" autocomplete="off" spellcheck="false" />
@@ -75,6 +78,8 @@
       <div class="contents-body" id="contentsBody"></div>
     </section>
 
+    <div class="scrim" id="scrim" hidden></div>
+
     <!-- left rail: systems + cuts, behind a hamburger -->
     <button class="railtoggle" id="railToggle" data-i18n-title="ui.panels" aria-expanded="true">
       <svg viewBox="0 0 18 18" class="ico"><path d="M2.5 5h13M2.5 9h13M2.5 13h13"/></svg>
@@ -109,6 +114,7 @@
         <button class="linkbtn" id="markAdd" data-i18n="marks.add">Save this view</button>
       </div>
       <div class="marklist" id="markList"></div>
+      <button class="linkbtn wide" id="hideChromeRail" data-i18n="tool.hideUi">Hide interface</button>
     </section>
 
     <!-- offline -->

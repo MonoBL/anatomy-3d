@@ -16,6 +16,9 @@ const BUILD = {
   commit: typeof __COMMIT__ === 'string' ? __COMMIT__ : 'unknown',
 };
 const stamp = iso => (iso ? `${iso.slice(0, 16).replace('T', ' ')} UTC` : '—');
+
+// A phone, either way up: narrow, or short and not wide.
+const PHONE_QUERY = '(max-width: 700px), (max-width: 1000px) and (max-height: 500px)';
 const FMA_URL = id => `https://bioportal.bioontology.org/ontologies/FMA?p=classes&conceptid=http%3A%2F%2Fpurl.org%2Fsig%2Font%2Ffma%2F${id.toLowerCase()}`;
 const WIKI_URL = (lang, title) => `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
 
@@ -43,6 +46,7 @@ const state = {
   pins: [],
   // The rail starts out of the way on a tablet, open on a desktop.
   rail: matchMedia('(min-width: 1100px)').matches && !matchMedia('(hover: none)').matches,
+  phone: matchMedia(PHONE_QUERY).matches,
   lang: initialLang(), t: null, nf: null, text: {},
   cuts: new Map(CUTS.map(c => [c.id, { on: false, at: 0.5, flip: false }])),
   compare: false, touch: matchMedia('(hover: none)').matches,
@@ -90,7 +94,8 @@ async function init() {
     const saved = localStorage.getItem('atlas.rail');
     if (saved !== null) rail = saved === '1';
   } catch { /* private mode */ }
-  setRail(rail);
+  // On a phone the rail is modal, so it never opens by itself.
+  setRail(rail && !state.phone);
   tick();
   state.text[state.lang] = await loadText(state.lang);
   await loadAll();
@@ -572,8 +577,20 @@ function applyBookmark(b) {
 }
 
 // ----------------------------------------------------------------- views
+// A phone has one slot at the bottom of the screen, so the views sheet, the
+// explode slider and the detail panel take turns in it.
+function markSheet(name) {
+  const app = $('#app');
+  app.classList.toggle('sheet-views', name === 'views');
+  app.classList.toggle('sheet-explode', name === 'explode');
+}
+
 function toggleViewSheet(on = $('#viewSheet').hidden) {
+  // One sheet at a time on a phone, and properly closed rather than hidden, so
+  // the toolbar's active states stay honest.
+  if (on && state.phone) toggleExplodePanel(false);
   $('#viewSheet').hidden = !on;
+  if (state.phone) markSheet(on ? 'views' : null);
   // Below a wide desktop the sheet and the rail would sit on top of each
   // other, so only one of them is open at a time.
   if (on && state.rail && innerWidth < 1280) setRail(false);
@@ -785,12 +802,26 @@ function setRail(open) {
   state.rail = open;
   $('#app').classList.toggle('rail-closed', !open);
   $('#railToggle').setAttribute('aria-expanded', String(open));
+  // On a phone the rail covers most of the screen, so it is modal: a scrim
+  // behind it, and a tap anywhere outside closes it.
+  $('#scrim').hidden = !(open && state.phone);
   try { localStorage.setItem('atlas.rail', open ? '1' : '0'); } catch { /* private mode */ }
 }
 
+// The search field is a button on a phone until it is asked for.
+function setSearchOpen(open) {
+  $('#app').classList.toggle('search-open', open);
+  if (open) $('#search').focus();
+  else { $('#search').blur(); $('#results').hidden = true; }
+}
+
 function toggleExplodePanel(on = $('#explodePanel').hidden) {
+  if (on && state.phone) toggleViewSheet(false);
   $('#explodePanel').hidden = !on;
+  if (state.phone) markSheet(on ? 'explode' : null);
   document.querySelector('.toolbar button[data-tool="explode"]')?.classList.toggle('is-active', on);
+  document.querySelector('.toolbar button[data-tool="views"]')
+    ?.classList.toggle('is-active', !$('#viewSheet').hidden);
   // Leaving the panel means leaving the exploded view: a slider you cannot see
   // is not a state anyone can get out of.
   if (!on && state.viewer.spread > 0) {
@@ -933,6 +964,13 @@ function setSide(side) {
 
 // One place that pushes region, sub-region and side into the viewer, reframes
 // and refreshes the bars, so the three controls can never disagree.
+// The strips scroll on a phone, so the chip that is active has to be brought
+// into view or the screen looks like it ignored the tap.
+function revealActive(sel) {
+  const el = document.querySelector(`${sel} button.is-active`);
+  el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+}
+
 function applyFilter({ frame = false } = {}) {
   const viewer = state.viewer;
   viewer.setFilter({ region: state.region, sub: state.sub, side: state.side });
@@ -947,6 +985,8 @@ function applyFilter({ frame = false } = {}) {
   }
   updateVisibleCount();
   if (!$('#viewSheet').hidden) buildJointChips();
+  revealActive('#regionBar');
+  revealActive('#subBar');
   syncToolbar();
 }
 
@@ -1150,6 +1190,7 @@ function selectPart(id, { focus = false, keepSelection = false } = {}) {
   $('#detailSource').href = txt.s ? WIKI_URL(state.lang, txt.s) : FMA_URL(p.f);
   $('#isolateBtn').classList.toggle('is-on', viewer.isolated);
   $('#detail').hidden = false;
+  if (state.phone) markSheet(null);
 
   const hasPair = p.p !== undefined;
   $('#compareBtn').hidden = !hasPair;
@@ -1227,6 +1268,20 @@ function bindUI() {
     syncTabs();
   });
   $('#railToggle').addEventListener('click', () => setRail(!state.rail));
+  $('#scrim').addEventListener('click', () => setRail(false));
+  $('#searchToggle').addEventListener('click', () => setSearchOpen(true));
+  $('#hideChromeRail').addEventListener('click', () => {
+    setRail(false);
+    setChrome(false);
+  });
+  // Which layout is in force decides whether panels are modal or side by side.
+  const phoneQuery = matchMedia(PHONE_QUERY);
+  phoneQuery.addEventListener('change', e => {
+    state.phone = e.matches;
+    document.body.classList.toggle('is-phone', e.matches);
+    setRail(state.rail);
+  });
+  document.body.classList.toggle('is-phone', state.phone);
   document.querySelectorAll('#viewSheet [data-dir]').forEach(b =>
     b.addEventListener('click', () => goToDir(b.dataset.dir)));
   $('#markAdd').addEventListener('click', saveBookmark);
@@ -1386,7 +1441,8 @@ function bindUI() {
     if (e.target.tagName === 'INPUT') return;
     if (e.key === '/') { e.preventDefault(); input.focus(); }
     else if (e.key === 'Escape') {
-      if (!$('#contents').hidden) openContents(false);
+      if ($('#app').classList.contains('search-open')) setSearchOpen(false);
+      else if (!$('#contents').hidden) openContents(false);
       else if (!$('#installModal').hidden) $('#installModal').hidden = true;
       else { selectPart(-1); $('#aboutModal').hidden = true; }
     }
@@ -1463,6 +1519,7 @@ function chooseResult(i) {
   if (!p) return;
   $('#results').hidden = true;
   $('#search').blur();
+  if (state.phone) setSearchOpen(false);
   selectPart(p.i, { focus: true });
 }
 

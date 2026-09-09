@@ -208,6 +208,34 @@ Phases 1 and 3 are the data-heavy ones and carry the risk; 2, 4-8 are mostly UI.
 
 ---
 
+## 9. Phone layout (2026-09-09)
+
+The atlas is built for an iPad and shows it on an iPhone 12 (390 x 844): the title runs under
+the search field, the region strip overflows, and the toolbar is a single row that loses a
+button off each edge. Everything below is a layout problem, not a feature one — the same
+controls, arranged for one hand on a small screen.
+
+| # | Change | Why |
+| --- | --- | --- |
+| 1 | A `phone` breakpoint (max-width 700px) plus an `is-phone` body class for the JS that has to know | the tablet rules assume ~800px of width |
+| 2 | Top bar: the masthead text goes, the search collapses to an icon that expands over the bar, and the row is icons only | the title and the field were fighting for the same 390px |
+| 3 | Region and sub-region strips: full width, scrollable, with the counts off | five region names never fit; scrolling with a visible edge is honest |
+| 4 | Toolbar: a 5 x 2 grid of icon buttons instead of one row, 56px targets | ten actions cannot sit in a row on a phone |
+| 5 | Layer stepper leaves the toolbar for the bottom-left corner, mirroring the explode bar bottom-right | both thumbs, both corners, and the grid keeps its ten cells |
+| 6 | Systems / saved views / cuts become a proper drawer with a scrim | a 248px column over a 390px screen has to be modal |
+| 7 | The detail panel becomes a bottom sheet, and the views sheet goes full width | a 262px card on a phone is a postage stamp |
+| 8 | Hide-interface moves into the drawer | it is for screenshots, not for constant use |
+| 9 | Audit at 390x844 and 844x390 with every panel open, as the tablet layout was audited | the only way this stays fixed |
+
+**Done.** Audited clean in both orientations with the detail sheet, the views sheet, the
+explode sheet and the drawer each open. Three things were learned on the way: a
+backdrop-filtered element is the containing block for a `position: fixed` child, so the layer
+stepper could not be lifted out of the toolbar and became a grid cell spanning both rows
+instead; a phone in landscape is short rather than narrow, so the phone rules key on
+`(max-width: 700px), (max-width: 1000px) and (max-height: 500px)`; and the tablet rules that
+cap the detail panel at 320px with an auto margin had to be undone explicitly for the sheet
+to fill the width.
+
 ## 7. Decisions taken (2026-09-08)
 
 - **One limb at a time**: entering the upper or lower limb selects a side, so the view is a
