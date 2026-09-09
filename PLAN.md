@@ -239,6 +239,9 @@ with no in-flow content collapses in Safari, which left the explode slider as a 
 button with nothing between them, and a cached `matchMedia` result goes stale on rotation, so
 the one-panel-at-a-time rule asks the query live.
 
+The explode slider was then made horizontal by default and only rotated on wide screens, so
+the phone layout has nothing to override.
+
 The turntable went with it — the floor, platform and rings the reference stands its figure on.
 They sit in front of the body whenever you look up from below, which is the angle for the
 pelvis and the plantar surface.

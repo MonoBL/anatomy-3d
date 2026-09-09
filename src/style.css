@@ -788,19 +788,25 @@ button { cursor: pointer; border: 0; background: none; }
   display: flex; flex-direction: column; align-items: center; gap: 8px;
 }
 .explode .pill { padding: 1px 5px; font-size: 9px; font-variant-numeric: tabular-nums; }
-/* A rotated horizontal input rather than a vertical one: `slider-vertical`
-   and `writing-mode` both leave the thumb natively styled and off the track
-   in one browser or another, and this keeps the same thumb as every other
-   slider in the app. */
-.explode .vtrack {
-  position: relative; flex: none; width: 22px;
-  /* The rotated input's width is this height, so the two have to match. */
-  height: var(--vlen, 190px);
-}
-.explode .vslider {
-  position: absolute; top: 50%; left: 50%;
-  width: var(--vlen, 190px); height: 22px; margin: 0; flex: none;
-  transform: translate(-50%, -50%) rotate(-90deg);   /* up increases */
+/* The slider is a plain horizontal input by default. The upright version is
+   that same input rotated, applied only where the panel stands on its edge, so
+   a phone has nothing to override — one less thing for Safari to disagree
+   about. (`slider-vertical` and `writing-mode` were both tried: each leaves
+   the thumb natively styled and off the track somewhere.) */
+.explode .vtrack { position: relative; flex: 1 1 0%; min-width: 0; height: 26px; }
+.explode .vslider { position: static; width: 100%; height: 26px; margin: 0; transform: none; }
+
+@media (min-width: 701px) {
+  .explode .vtrack {
+    flex: none; width: 22px;
+    /* The rotated input's width is this height, so the two have to match. */
+    height: var(--vlen, 190px);
+  }
+  .explode .vslider {
+    position: absolute; top: 50%; left: 50%;
+    width: var(--vlen, 190px); height: 22px; flex: none;
+    transform: translate(-50%, -50%) rotate(-90deg);   /* up increases */
+  }
 }
 .explode .iconbtn.reset { width: 24px; height: 24px; }
 
@@ -1026,14 +1032,7 @@ button { cursor: pointer; border: 0; background: none; }
     bottom: calc(140px + var(--sab));
     flex-direction: row; align-items: center; gap: 10px; padding: 10px 12px;
   }
-  /* A flex basis of 0 rather than auto: with `auto` the track has no content
-     to size from (the input is absolutely positioned in the tablet layout) and
-     Safari collapses it to nothing, which left the panel as a pill and a
-     button with no slider between them. */
-  .explode .vtrack { flex: 1 1 0%; width: auto; min-width: 0; height: 26px; }
-  .explode .vslider {
-    position: static; width: 100%; height: 26px; transform: none; flex: 1 1 auto;
-  }
+  /* The slider is already horizontal by default; nothing to undo here. */
 
   /* --- the drawer, and the sheets */
   #app:not(.rail-closed) .leftrail, .leftrail {
@@ -1078,6 +1077,12 @@ button { cursor: pointer; border: 0; background: none; }
 /* Landscape on a phone: 390px of height, so the grid flattens to one row and
    everything above it moves up. */
 @media (max-width: 1000px) and (max-height: 500px) {
+  /* This range is also above 701px wide, so the upright slider rules apply
+     here; put the flat one back. */
+  .explode .vtrack { flex: 1 1 0%; width: auto; min-width: 0; height: 26px; }
+  .explode .vslider {
+    position: static; width: 100%; height: 26px; transform: none; flex: 1 1 auto;
+  }
   .toolbar { grid-template-columns: 40px repeat(10, 1fr); }
   .toolbar button { min-height: 42px; }
   .toolbar button span { font-size: 7px; }

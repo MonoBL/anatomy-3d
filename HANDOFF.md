@@ -187,7 +187,13 @@ Do not re-learn these:
   it is a grid cell spanning both rows instead.
 - **`flex: 1 1 auto` on a box with no in-flow content collapses in Safari.** The phone's
   explode slider came out as a pill and a button with nothing between them until the track
-  got `flex: 1 1 0%`.
+  got `flex: 1 1 0%`. The explode input is now horizontal *by default* and only rotated
+  inside `@media (min-width: 701px)`, so the phone has nothing to override — the phone
+  landscape range is wider than 701px, so it puts the flat rules back explicitly.
+- **A running home-screen app does not look for a new build by itself.** The worker
+  registration calls `update()` on start and hourly, and a `controllerchange` reloads the page
+  once; the shell cache name has to be bumped when index.html or the icons change. An install
+  made before that logic shipped has to be closed and reopened (or removed and re-added) once.
 - **A cached `matchMedia` result goes stale on rotation.** The one-panel-at-a-time rule asks
   the query live.
 - **One material cannot write depth for some fragments and not others**, which is why
