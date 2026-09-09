@@ -263,6 +263,37 @@ so nothing else in the pipeline needs to know about it.
 - No tests. `npm run verify:atlas`, `npm run report:regions` and `npm run check:i18n` are the
   current safety net.
 
+## Testing and tooling (what the last sessions used)
+
+There is no test suite; this is how the work was actually checked, and it is worth reusing.
+
+- **Headless Chrome.** Puppeteer's own Chrome is not installed on this machine, so launch it
+  with `executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'` and
+  `args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']` —
+  WebGL then works headless. `window.__atlas` is exposed in dev builds and is the handle for
+  everything: `__atlas.viewer`, `__atlas.index`, `__atlas.text`.
+- **Layout audit.** The one that found every overlap: collect the bounding boxes of the chrome
+  (`.topright`, `#regionBar`, `#subBar`, `#leftRail`, `#explodePanel`, `.toolbar`,
+  `#viewSheet`, `.viewbar`, `#detail`, `.contentsbtn`, `#railToggle`, `#resetView`), skipping
+  anything `display: none` or behind the scrim, then report boxes outside the viewport and
+  every pair that overlaps by more than 3px, plus panels whose `scrollHeight` exceeds their
+  `clientHeight` without `overflow-y: auto`. Run it with every panel open at 1440x900,
+  1180x820, 1024x768, 834x1194, 390x844 and 844x390. Two things to know: a panel measured
+  mid-transition reads as off-screen (re-measure after ~300ms), and the drawer legitimately
+  covers everything while its scrim is up.
+- **Plates for the README** were rendered by the viewer itself —
+  `viewer.renderThumbnail({ systems, box, filter, size: 900 })` — and POSTed from the page to
+  a throwaway local server that wrote them into `docs/screenshots/`. No screenshot tool, no
+  browser chrome, and the same code path the contents cards use.
+- **The myology PDF** needs `pdfplumber` (Python). The venv used for it lived in a session
+  scratchpad, so make a new one: `python3 -m venv .venv && .venv/bin/pip install pdfplumber`,
+  then `python3 tools/extract-miologia.py <pdf>` and `npm run map:miologia`.
+- **Version stamping.** `vite.config.js` defines `__APP_VERSION__`, `__BUILD_TIME__` and
+  `__COMMIT__` (with a `+` when the tree is dirty), which the (i) panel prints. Bump the
+  version in `package.json`; it is the only place it lives.
+- **Scripts.** `verify:atlas`, `report:regions [name]`, `report:systems`, `check:i18n`,
+  `map:miologia`, and `make-icons.mjs` for the PWA icons.
+
 ## Working preferences captured
 
 Short answers, Portuguese conversation. This is a personal project: it commits under the
